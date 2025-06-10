@@ -1,0 +1,29 @@
+[project]
+name = "finrl_minimal_crypto"
+version = "0.1.0"
+description = "Minimal Crypto Trading Agent using FinRL"
+requires-python = ">=3.12.0"
+dependencies = [
+    "finrl>=0.3.6",
+    "gymnasium>=0.29.0",
+    "stable-baselines3>=2.0.0",
+    "ccxt>=4.0.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "yfinance>=0.2.36",
+    "alpaca-trade-api>=3.0.0",
+    "exchange_calendars>=4.0.0",
+    "stockstats>=0.5.0",
+    "scikit-learn>=1.4.0",
+    "torch>=2.2.0",
+    "tensorboard>=2.15.0",
+    "wandb>=0.16.0",
+    "wrds>=0.1.0",
+    "streamlit>=1.31.0",
+    "plotly>=5.18.0"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta" 
