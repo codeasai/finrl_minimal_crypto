@@ -204,8 +204,12 @@ def calculate_estimated_time(params):
 def show_training_parameters(model_type, exchange, grade):
     """แสดงและรับค่าพารามิเตอร์การเทรน"""
     params = get_training_params(model_type, exchange, grade)
+    is_continue_mode = st.session_state.get('train_mode') == "Continue Training"
     
     with st.expander("🔧 Training Parameters", expanded=True):
+        if is_continue_mode:
+            st.info("ℹ️ When continuing training, structural parameters (like n_steps, batch_size, etc.) are fixed from the original loaded model. Only parameters like learning rate, clip range, etc., can be effectively changed.")
+
         # Exchange Information
         st.markdown(f"""
         ### 📊 Exchange Information
@@ -250,51 +254,80 @@ def show_training_parameters(model_type, exchange, grade):
                         max_value=1e-2,
                         value=params['learning_rate'],
                         format="%.0e",
-                        help="Model's learning rate"
+                        help="Model's learning rate. This can be changed for continued training."
                     )
+                    n_steps_help = "Number of steps per update (rollout buffer size)."
+                    if is_continue_mode:
+                        n_steps_help += " This is fixed when continuing training."
                     n_steps = st.number_input(
                         "Steps per Update",
                         min_value=512,
                         max_value=4096,
                         value=params['n_steps'],
                         step=512,
-                        help="จำนวน steps ต่อการอัพเดท"
+                        help=n_steps_help,
+                        disabled=is_continue_mode
                     )
+                    if is_continue_mode and not params['show_advanced']: st.caption("Fixed for continued training.")
+
+                    batch_size_help = "Training batch size."
+                    if is_continue_mode:
+                        batch_size_help += " This is fixed when continuing training."
                     batch_size = st.number_input(
                         "Batch Size",
                         min_value=32,
                         max_value=512,
                         value=params['batch_size'],
                         step=32,
-                        help="Training batch size"
+                        help=batch_size_help,
+                        disabled=is_continue_mode
                     )
+                    if is_continue_mode and not params['show_advanced']: st.caption("Fixed for continued training.")
+
                 with col2:
+                    n_epochs_help = "Number of epochs per update."
+                    if is_continue_mode:
+                        n_epochs_help += " This is fixed when continuing training."
                     n_epochs = st.number_input(
                         "Number of Epochs",
                         min_value=1,
                         max_value=20,
                         value=params['n_epochs'],
                         step=1,
-                        help="จำนวน epochs ต่อการอัพเดท"
+                        help=n_epochs_help,
+                        disabled=is_continue_mode
                     )
+                    if is_continue_mode and not params['show_advanced']: st.caption("Fixed for continued training.")
+
+                    gamma_help = "Discount factor for future rewards (gamma)."
+                    if is_continue_mode:
+                        gamma_help += " This is fixed when continuing training."
                     gamma = st.number_input(
                         "Gamma (Discount Factor)",
                         min_value=0.8,
                         max_value=0.999,
                         value=params['gamma'],
                         step=0.001,
-                        help="Discount factor for future rewards"
+                        help=gamma_help,
+                        disabled=is_continue_mode
                     )
+                    if is_continue_mode and not params['show_advanced']: st.caption("Fixed for continued training.")
+
+                    gae_lambda_help = "Factor for trade-off of bias vs variance for GAE (lambda)."
+                    if is_continue_mode:
+                        gae_lambda_help += " This is fixed when continuing training."
                     gae_lambda = st.number_input(
                         "GAE Lambda",
                         min_value=0.8,
                         max_value=0.999,
                         value=params['gae_lambda'],
                         step=0.001,
-                        help="GAE parameter"
+                        help=gae_lambda_help,
+                        disabled=is_continue_mode
                     )
+                    if is_continue_mode and not params['show_advanced']: st.caption("Fixed for continued training.")
                 
-                st.markdown("### ⚖️ Environment Parameters")
+                st.markdown("### ⚖️ Environment Parameters (Can be changed for continued training)")
                 col1, col2 = st.columns(2)
                 with col1:
                     reward_scaling = st.slider(
@@ -1122,22 +1155,71 @@ def train_model(env, model_type, params, total_timesteps, model_path=None):
             try:
                 # โหลดโมเดลเดิมถ้ามี
                 st.info(f"🔄 โหลดโมเดลเดิมจาก {model_path}")
-                model = PPO.load(model_path)
+                # Provide custom_objects for robust loading, env for buffer setup if needed by SB3
+                # PPO_PARAMS['device'] ensures model is loaded onto the correct device.
+                custom_objects_for_load = {
+                    'learning_rate': 0.0,  # Default placeholder, actual LR passed to learn()
+                    'lr_schedule': lambda _: 0.0,  # Placeholder for potential lr_schedule
+                    'clip_range': lambda _: 0.0  # Placeholder for potential clip_range schedule
+                }
+                model = PPO.load(
+                    model_path,
+                    env=env, # env is needed to set up the model's observation and action space
+                    device=PPO_PARAMS['device'],
+                    custom_objects=custom_objects_for_load
+                )
                 
-                # อัพเดทพารามิเตอร์
-                model.learning_rate = PPO_PARAMS['learning_rate']
-                model.n_steps = PPO_PARAMS['n_steps']
-                model.batch_size = PPO_PARAMS['batch_size']
-                model.n_epochs = PPO_PARAMS['n_epochs']
-                model.gamma = PPO_PARAMS['gamma']
-                model.gae_lambda = PPO_PARAMS['gae_lambda']
-                model.clip_range = PPO_PARAMS['clip_range']
-                model.ent_coef = PPO_PARAMS['ent_coef']
-                model.vf_coef = PPO_PARAMS['vf_coef']
+                # Parameters like n_steps, batch_size, n_epochs, gamma, gae_lambda
+                # are part of the model's architecture or fixed schedule and generally not changed on-the-fly post-load.
+                # We will update parameters that can be adjusted for the learn() phase.
                 
-                st.success("✅ โหลดโมเดลเดิมสำเร็จ")
+                st.info(f"Continuing training for model: {model_path}")
+                st.warning("Structural parameters (n_steps, batch_size, n_epochs, gamma, gae_lambda) are not changed from the loaded model.")
+                st.info("⚙️ Applying new parameters to the loaded model for the next learning phase...")
+
+                if 'learning_rate' in PPO_PARAMS:
+                    model.learning_rate = PPO_PARAMS['learning_rate']
+                    # Re-initialize the learning rate schedule
+                    model._setup_lr_schedule()
+                    st.info(f"Applied new learning rate: {model.learning_rate}")
+
+                if 'clip_range' in PPO_PARAMS:
+                    # PPO uses model.clip_range which can be a float or a schedule
+                    # Re-assigning it and then letting SB3 internally use this new value/schedule
+                    model.clip_range = PPO_PARAMS['clip_range']
+                    # If clip_range is a schedule, SB3 typically has a self.clip_schedule.
+                    # For PPO, it uses get_schedule_fn(self.clip_range) internally.
+                    # We also need to update model.clip_range_vf if it exists for PPO's dual clipping
+                    if hasattr(model, 'clip_range_vf'):
+                         model.clip_range_vf = PPO_PARAMS['clip_range'] # Assuming same clip range for value function
+                    st.info(f"Applied new clip range: {model.clip_range}")
+
+                if 'ent_coef' in PPO_PARAMS:
+                    model.ent_coef = PPO_PARAMS['ent_coef']
+                    st.info(f"Applied new ent_coef: {model.ent_coef}")
+
+                if 'vf_coef' in PPO_PARAMS:
+                    model.vf_coef = PPO_PARAMS['vf_coef']
+                    st.info(f"Applied new vf_coef: {model.vf_coef}")
+
+                if 'max_grad_norm' in PPO_PARAMS:
+                    model.max_grad_norm = PPO_PARAMS['max_grad_norm']
+                    st.info(f"Applied new max_grad_norm: {model.max_grad_norm}")
+
+                if 'target_kl' in PPO_PARAMS and hasattr(model, 'target_kl'):
+                    model.target_kl = PPO_PARAMS['target_kl']
+                    st.info(f"Applied new target_kl: {model.target_kl}")
+
+                # Parameters like gamma, gae_lambda, n_steps, batch_size, n_epochs are generally not changed post-load effectively.
+                # The DRLAgent does not pass these to model.learn() as kwargs.
+                # agent.model_kwargs_for_learn is mainly for new models or specific learn() time args not covered here.
+                # For loaded models, the DRLAgent will use the model's internal parameters.
+                agent.model_kwargs_for_learn = {} # Clear any previous learn kwargs from DRLAgent init
+
+                st.success("✅ โหลดโมเดลเดิมสำเร็จ และอัพเดทพารามิเตอร์ที่เกี่ยวข้องกับการ learn")
+
             except Exception as e:
-                st.error(f"❌ เกิดข้อผิดพลาดในการโหลดโมเดลเดิม: {str(e)}")
+                st.error(f"❌ เกิดข้อผิดพลาดในการโหลดโมเดลเดิม หรือ อัพเดทพารามิเตอร์: {str(e)}")
                 st.info("🔄 สร้างโมเดลใหม่แทน")
                 model = agent.get_model("ppo", model_kwargs=PPO_PARAMS)
         else:
@@ -1301,31 +1383,66 @@ def save_model(model, model_path, version=None):
     """บันทึกโมเดล"""
     try:
         if version is not None:
-            # สร้างชื่อไฟล์เวอร์ชั่นใหม่
-            model_name = os.path.basename(model_path)
-            next_version_name = get_next_version_name(model_name)
-            save_path = os.path.join(MODEL_DIR, next_version_name)
+            # Extract base model name (e.g., "minimal_crypto_AgentName")
+            current_filename_zip = os.path.basename(model_path) # e.g., "minimal_crypto_AgentName_vOld.zip"
+            current_filename_no_zip = os.path.splitext(current_filename_zip)[0] # e.g., "minimal_crypto_AgentName_vOld"
+
+            # Attempt to find the true base name by removing version suffix like "_vNUMBER"
+            parts = current_filename_no_zip.split('_v')
+            base_model_name = parts[0]
+            if len(parts) > 1 and parts[-1].isdigit(): # Check if the last part after _v is a number
+                 #This implies the original name might have _v in it not related to versioning,
+                 #so we rejoin if it's not the typical version suffix.
+                 #However, get_latest_version expects base_model_name to not end with _vX.
+                 #A simpler heuristic: if current_filename_no_zip matches pattern "name_vNumber", extract "name".
+                 import re
+                 match = re.match(r"^(.*?)_v\d+$", current_filename_no_zip)
+                 if match:
+                     base_model_name = match.group(1)
+                 else: # Otherwise, assume the part before the first _v (if any) or the whole name is the base
+                     base_model_name = current_filename_no_zip.split('_v')[0]
+
+
+            next_version_filename_stem = get_next_version_name(base_model_name) # e.g., "minimal_crypto_AgentName_vNew"
+            # model.save() will append .zip, so save_path_for_model_save is without .zip
+            save_path_for_model_save = os.path.join(MODEL_DIR, next_version_filename_stem)
+            actual_saved_zip_path = save_path_for_model_save + ".zip"
         else:
-            save_path = model_path
+            # For non-versioned save, if model_path has .zip, use it, else append .zip for actual save
+            if model_path.endswith(".zip"):
+                save_path_for_model_save = os.path.splitext(model_path)[0]
+                actual_saved_zip_path = model_path
+            else:
+                save_path_for_model_save = model_path
+                actual_saved_zip_path = model_path + ".zip"
             
-        # บันทึกโมเดล
-        model.save(save_path)
+        # บันทึกโมเดล (SB3's save appends .zip if not in path)
+        model.save(save_path_for_model_save)
         
         # บันทึกข้อมูลการเทรน
+        new_version_number = 0
+        if version is not None:
+            # Extract new version number from next_version_filename_stem
+            # next_version_filename_stem is like "base_model_name_vNUMBER"
+            try:
+                new_version_number = int(next_version_filename_stem.split('_v')[-1])
+            except ValueError:
+                new_version_number = -1 # Indicates an issue with parsing version
+
         train_info = {
-            'model_path': save_path,
+            'model_path': actual_saved_zip_path, # Store the path to the .zip file
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'version': version if version is not None else 0
+            'version': new_version_number if version is not None else 0
         }
         
         # บันทึกข้อมูลลงไฟล์ JSON
-        info_path = save_path.replace('.zip', '_info.json')
+        info_path = os.path.splitext(actual_saved_zip_path)[0] + '_info.json'
         with open(info_path, 'w') as f:
             json.dump(train_info, f, indent=4)
             
         return {
             'success': True,
-            'path': save_path,
+            'path': actual_saved_zip_path, # Return the path to the .zip file
             'version': version if version is not None else 0
         }
     except Exception as e:
@@ -1455,8 +1572,10 @@ def train_agent_ui():
     train_mode = st.radio(
         "Training Mode",
         ["Create Agent", "Continue Training"],
-        help="Choose whether to create a new agent or continue training an existing one"
+        help="Choose whether to create a new agent or continue training an existing one",
+        key="train_mode_selection" # Add a key for robust state handling
     )
+    st.session_state['train_mode'] = train_mode # Store in session state
     
     # Exchange selection
     exchange = st.selectbox(
