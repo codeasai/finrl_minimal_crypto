@@ -1,4 +1,4 @@
-name: finrl_minimal_crypto
+name: tfyf
 channels:
   - conda-forge
   - pytorch
