@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 import yfinance as yf
+import torch
 
 # FinRL imports
 from finrl.meta.data_processors.processor_yahoofinance import YahooFinanceProcessor
@@ -23,6 +24,28 @@ DATA_DIR = "data"
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
+# ตรวจสอบและตั้งค่า GPU
+def setup_device():
+    """
+    ตรวจสอบและตั้งค่าการใช้งาน GPU/CPU
+    """
+    print("\n🔍 ตรวจสอบการใช้งาน GPU/CPU")
+    print("-" * 50)
+    
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"✅ พบ GPU: {torch.cuda.get_device_name(0)}")
+        print(f"📊 จำนวน GPU: {torch.cuda.device_count()}")
+        print(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+    else:
+        device = torch.device("cpu")
+        print("ℹ️ ไม่พบ GPU ใช้ CPU แทน")
+    
+    # ตั้งค่า environment variable สำหรับ Stable Baselines3
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0" if torch.cuda.is_available() else "-1"
+    
+    return device
+
 def download_crypto_data(force_download=False):
     """
     ดาวน์โหลดข้อมูล crypto โดยใช้ yfinance โดยตรง
@@ -35,6 +58,14 @@ def download_crypto_data(force_download=False):
         print("📂 Loading existing data...")
         try:
             df = pd.read_csv(data_file)
+            # แปลงชื่อคอลัมน์เป็นตัวเล็ก
+            df = df.rename(columns={
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Volume': 'volume'
+            })
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             print(f"✅ Loaded {len(df)} rows of data")
             print(f"📅 Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
@@ -67,6 +98,23 @@ def download_crypto_data(force_download=False):
             # เพิ่มคอลัมน์ที่จำเป็น
             df['tic'] = symbol
             df['timestamp'] = df.index
+            
+            # แปลงชื่อคอลัมน์เป็นตัวเล็ก
+            df = df.rename(columns={
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Volume': 'volume'
+            })
+            
+            # ตรวจสอบว่ามีคอลัมน์ที่จำเป็นครบหรือไม่
+            required_columns = ['open', 'high', 'low', 'close', 'volume', 'tic', 'timestamp']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                print(f"⚠️ Warning: Missing columns for {symbol}: {', '.join(missing_columns)}")
+                continue
+            
             df_list.append(df)
             print(f"✅ Downloaded {len(df)} rows for {symbol}")
         except Exception as e:
@@ -79,6 +127,15 @@ def download_crypto_data(force_download=False):
     # รวมข้อมูล
     df = pd.concat(df_list, axis=0)
     df = df.reset_index(drop=True)
+    
+    # ตรวจสอบและแปลงชื่อคอลัมน์อีกครั้ง
+    df = df.rename(columns={
+        'Open': 'open',
+        'High': 'high',
+        'Low': 'low',
+        'Close': 'close',
+        'Volume': 'volume'
+    })
     
     # บันทึกข้อมูล
     try:
@@ -117,13 +174,29 @@ def add_technical_indicators(df):
     # สร้างสำเนาข้อมูล
     df = df.copy()
     
+    # ตรวจสอบและแปลงชื่อคอลัมน์เป็นตัวเล็ก
+    column_mapping = {
+        'Open': 'open',
+        'High': 'high',
+        'Low': 'low',
+        'Close': 'close',
+        'Volume': 'volume'
+    }
+    df = df.rename(columns=column_mapping)
+    
+    # ตรวจสอบว่ามีคอลัมน์ที่จำเป็นครบหรือไม่
+    required_columns = ['open', 'high', 'low', 'close', 'volume', 'tic', 'timestamp']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"ไม่พบคอลัมน์ที่จำเป็น: {', '.join(missing_columns)}")
+    
     # 1. Moving Averages
-    df['SMA_20'] = df.groupby('tic')['Close'].transform(lambda x: x.rolling(window=20).mean())
-    df['EMA_20'] = df.groupby('tic')['Close'].transform(lambda x: x.ewm(span=20, adjust=False).mean())
+    df['sma_20'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).mean())
+    df['ema_20'] = df.groupby('tic')['close'].transform(lambda x: x.ewm(span=20, adjust=False).mean())
     
     # 2. RSI (Relative Strength Index)
     def calculate_rsi(group):
-        delta = group['Close'].diff()
+        delta = group['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
@@ -135,19 +208,19 @@ def add_technical_indicators(df):
         tic_data = df[df['tic'] == tic].copy()
         rsi = calculate_rsi(tic_data)
         rsi_values.extend(rsi.values)
-    df['RSI_14'] = rsi_values
+    df['rsi_14'] = rsi_values
     
     # 3. MACD
     def calculate_macd(group):
-        exp1 = group['Close'].ewm(span=12, adjust=False).mean()
-        exp2 = group['Close'].ewm(span=26, adjust=False).mean()
+        exp1 = group['close'].ewm(span=12, adjust=False).mean()
+        exp2 = group['close'].ewm(span=26, adjust=False).mean()
         macd = exp1 - exp2
         signal = macd.ewm(span=9, adjust=False).mean()
         hist = macd - signal
         return pd.DataFrame({
-            'MACD': macd,
-            'MACD_Signal': signal,
-            'MACD_Hist': hist
+            'macd': macd,
+            'macd_signal': signal,
+            'macd_hist': hist
         })
     
     # คำนวณ MACD แยกตาม tic
@@ -158,30 +231,30 @@ def add_technical_indicators(df):
         macd_dfs.append(macd_result)
     
     macd_df = pd.concat(macd_dfs)
-    df['MACD'] = macd_df['MACD'].values
-    df['MACD_Signal'] = macd_df['MACD_Signal'].values
-    df['MACD_Hist'] = macd_df['MACD_Hist'].values
+    df['macd'] = macd_df['macd'].values
+    df['macd_signal'] = macd_df['macd_signal'].values
+    df['macd_hist'] = macd_df['macd_hist'].values
     
     # 4. Bollinger Bands
-    df['BB_Middle'] = df.groupby('tic')['Close'].transform(lambda x: x.rolling(window=20).mean())
-    df['BB_Std'] = df.groupby('tic')['Close'].transform(lambda x: x.rolling(window=20).std())
-    df['BB_Upper'] = df['BB_Middle'] + (df['BB_Std'] * 2)
-    df['BB_Lower'] = df['BB_Middle'] - (df['BB_Std'] * 2)
+    df['bb_middle'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).mean())
+    df['bb_std'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).std())
+    df['bb_upper'] = df['bb_middle'] + (df['bb_std'] * 2)
+    df['bb_lower'] = df['bb_middle'] - (df['bb_std'] * 2)
     
     # 5. Volume Indicators
-    df['Volume_SMA_20'] = df.groupby('tic')['Volume'].transform(lambda x: x.rolling(window=20).mean())
-    df['Volume_Ratio'] = df['Volume'] / df['Volume_SMA_20']
+    df['volume_sma_20'] = df.groupby('tic')['volume'].transform(lambda x: x.rolling(window=20).mean())
+    df['volume_ratio'] = df['volume'] / df['volume_sma_20']
     
     # Normalize ข้อมูลราคาและ volume
-    price_cols = ['Open', 'High', 'Low', 'Close']
+    price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
         df[col] = df.groupby('tic')[col].transform(lambda x: (x - x.mean()) / x.std())
     
-    df['Volume'] = df.groupby('tic')['Volume'].transform(lambda x: (x - x.mean()) / x.std())
+    df['volume'] = df.groupby('tic')['volume'].transform(lambda x: (x - x.mean()) / x.std())
     
     # Normalize technical indicators
-    indicator_cols = ['SMA_20', 'EMA_20', 'RSI_14', 'MACD', 'MACD_Signal', 'MACD_Hist',
-                     'BB_Middle', 'BB_Std', 'BB_Upper', 'BB_Lower', 'Volume_SMA_20', 'Volume_Ratio']
+    indicator_cols = ['sma_20', 'ema_20', 'rsi_14', 'macd', 'macd_signal', 'macd_hist',
+                     'bb_middle', 'bb_std', 'bb_upper', 'bb_lower', 'volume_sma_20', 'volume_ratio']
     
     for col in indicator_cols:
         if col in df.columns:
@@ -199,35 +272,11 @@ def add_technical_indicators(df):
 
 def create_environment(df):
     """
-    สร้าง trading environment
+    สร้าง trading environment แบบปลอดภัยจาก numpy AttributeError
     """
     print("🏛️ Creating trading environment...")
     
-    # แบ่งข้อมูลเป็น train/test โดยใช้สัดส่วน 80/20
-    train_size = int(len(df) * 0.8)
-    train_df = df.iloc[:train_size].reset_index(drop=True)
-    test_df = df.iloc[train_size:].reset_index(drop=True)
-    
-    # ตรวจสอบให้แน่ใจว่า timestamp และ date เป็นรูปแบบที่ถูกต้อง
-    for data in [train_df, test_df]:
-        data['timestamp'] = pd.to_datetime(data['timestamp'])
-        data['date'] = data['timestamp'].dt.date
-        # เรียงข้อมูลตามวันที่
-        data.sort_values(['date', 'tic'], inplace=True)
-        data.reset_index(drop=True, inplace=True)
-    
-    print(f"📚 Training data: {len(train_df)} rows ({train_df['timestamp'].min()} to {train_df['timestamp'].max()})")
-    print(f"📝 Testing data: {len(test_df)} rows ({test_df['timestamp'].min()} to {test_df['timestamp'].max()})")
-    
-    # กำหนด indicators ที่ใช้
-    indicators = [
-        'SMA_20', 'EMA_20', 'RSI_14', 
-        'MACD', 'MACD_Signal', 'MACD_Hist',
-        'BB_Middle', 'BB_Std', 'BB_Upper', 'BB_Lower',
-        'Volume_SMA_20', 'Volume_Ratio'
-    ]
-    
-    # แปลงชื่อคอลัมน์ให้เป็นตัวพิมพ์เล็กเพื่อให้เข้ากับ FinRL
+    # ตรวจสอบและแปลงชื่อคอลัมน์เป็นตัวเล็ก
     column_mapping = {
         'Open': 'open',
         'High': 'high',
@@ -235,13 +284,60 @@ def create_environment(df):
         'Close': 'close',
         'Volume': 'volume'
     }
+    df = df.rename(columns=column_mapping)
     
-    # เพิ่ม mapping สำหรับ indicators
-    for indicator in indicators:
-        column_mapping[indicator] = indicator.lower()
+    # แบ่งข้อมูลเป็น train/test โดยใช้สัดส่วน 80/20
+    train_size = int(len(df) * 0.8)
+    train_df = df.iloc[:train_size].copy().reset_index(drop=True)
+    test_df = df.iloc[train_size:].copy().reset_index(drop=True)
     
-    train_df = train_df.rename(columns=column_mapping)
-    test_df = test_df.rename(columns=column_mapping)
+    # ฟังก์ชันเตรียมข้อมูลสำหรับ FinRL แบบปลอดภัย
+    def prepare_finrl_data(data):
+        """แปลงข้อมูลให้เข้ากับ FinRL โดยหลีกเลี่ยง numpy scalar AttributeError"""
+        data = data.copy()
+        
+        # แปลง timestamp และ date
+        data['timestamp'] = pd.to_datetime(data['timestamp'])
+        data['date'] = data['timestamp'].dt.strftime('%Y-%m-%d')  # ใช้ string แทน date object
+        
+        # เรียงข้อมูลตามวันที่และ symbol
+        data = data.sort_values(['date', 'tic']).reset_index(drop=True)
+        
+        # แปลงข้อมูลตัวเลขให้เป็น float64 และตรวจสอบ NaN
+        numeric_columns = ['open', 'high', 'low', 'close', 'volume'] + [
+            'sma_20', 'ema_20', 'rsi_14', 
+            'macd', 'macd_signal', 'macd_hist',
+            'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
+            'volume_sma_20', 'volume_ratio'
+        ]
+        
+        for col in numeric_columns:
+            if col in data.columns:
+                # แปลงเป็น pandas Series ชัดเจน และแทนที่ NaN ด้วย 0
+                data[col] = pd.Series(data[col]).astype('float64').fillna(0.0)
+        
+        # ตรวจสอบและแก้ไข inf values
+        data = data.replace([np.inf, -np.inf], 0.0)
+        
+        # ตรวจสอบให้แน่ใจว่าไม่มี NaN
+        data = data.fillna(0.0)
+        
+        return data
+    
+    # เตรียมข้อมูล train และ test
+    train_df = prepare_finrl_data(train_df)
+    test_df = prepare_finrl_data(test_df)
+    
+    print(f"📚 Training data: {len(train_df)} rows ({train_df['timestamp'].min()} to {train_df['timestamp'].max()})")
+    print(f"📝 Testing data: {len(test_df)} rows ({test_df['timestamp'].min()} to {test_df['timestamp'].max()})")
+    
+    # กำหนด indicators ที่ใช้
+    indicators = [
+        'sma_20', 'ema_20', 'rsi_14', 
+        'macd', 'macd_signal', 'macd_hist',
+        'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
+        'volume_sma_20', 'volume_ratio'
+    ]
     
     # สร้าง environment สำหรับ training
     env_kwargs = {
@@ -252,7 +348,7 @@ def create_environment(df):
         "sell_cost_pct": [TRANSACTION_COST_PCT] * len(CRYPTO_SYMBOLS),
         "state_space": 1 + 2 * len(CRYPTO_SYMBOLS) + len(CRYPTO_SYMBOLS) * len(indicators),
         "stock_dim": len(CRYPTO_SYMBOLS),
-        "tech_indicator_list": [ind.lower() for ind in indicators],
+        "tech_indicator_list": indicators,
         "action_space": len(CRYPTO_SYMBOLS),
         "reward_scaling": 1e-3,  # ปรับ reward scaling
         "print_verbosity": 1     # เพิ่มการแสดงผลข้อมูล
@@ -272,6 +368,9 @@ def train_agent(train_env):
     """
     print("🤖 Training DRL Agent...")
     
+    # ตรวจสอบและตั้งค่า GPU/CPU
+    device = setup_device()
+    
     # สร้าง agent
     agent = DRLAgent(env=train_env)
     
@@ -287,7 +386,8 @@ def train_agent(train_env):
         'max_grad_norm': 0.5,      # gradient clipping
         'ent_coef': 0.01,          # entropy coefficient
         'vf_coef': 0.5,            # value function coefficient
-        'target_kl': 0.02          # target KL divergence
+        'target_kl': 0.02,         # target KL divergence
+        'device': device           # ใช้ GPU หรือ CPU
     }
     
     # เลือก model (PPO ที่ปรับแต่งแล้ว)
@@ -325,7 +425,8 @@ def train_agent(train_env):
             'batch_size': 128,
             'n_steps': 1024,
             'gamma': 0.99,
-            'gae_lambda': 0.95
+            'gae_lambda': 0.95,
+            'device': device  # ใช้ GPU หรือ CPU
         }
         
         print(f"New parameters: {SIMPLE_PARAMS}")
@@ -418,7 +519,7 @@ def plot_results(df_account_value, test_df):
     
     # Plot 2: BTC Price comparison
     btc_data = test_df[test_df['tic'] == 'BTC-USD'].copy()
-    btc_prices = btc_data.groupby('timestamp')['close'].first().values
+    btc_prices = btc_data.groupby('timestamp')['Close'].first().values
     btc_normalized = btc_prices / btc_prices[0] * INITIAL_AMOUNT
     
     portfolio_normalized = portfolio_values
@@ -445,6 +546,9 @@ def main():
     print("="*60)
     
     try:
+        # ตรวจสอบและตั้งค่า GPU/CPU
+        device = setup_device()
+        
         # Step 1: Download data (ใส่ force_download=True ถ้าต้องการดาวน์โหลดใหม่)
         df = download_crypto_data(force_download=False)
         
