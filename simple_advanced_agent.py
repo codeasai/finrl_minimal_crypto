@@ -24,7 +24,7 @@ from config import *
 
 # สร้างโฟลเดอร์สำหรับเก็บข้อมูล
 SIMPLE_DATA_DIR = "simple_data"
-SIMPLE_MODEL_DIR = "simple_models"
+SIMPLE_MODEL_DIR = "models"  # ใช้ models directory เดียวกัน
 for dir_name in [SIMPLE_DATA_DIR, SIMPLE_MODEL_DIR]:
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)

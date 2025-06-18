@@ -30,7 +30,7 @@ from config import *
 
 # สร้างโฟลเดอร์สำหรับเก็บข้อมูล
 DATA_DIR = "data"
-ADVANCED_MODEL_DIR = "advanced_models"
+ADVANCED_MODEL_DIR = "models"  # ใช้ models directory เดียวกัน
 for dir_name in [DATA_DIR, ADVANCED_MODEL_DIR]:
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)

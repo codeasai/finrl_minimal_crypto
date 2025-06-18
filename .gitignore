@@ -1,8 +1,57 @@
-/.venv
-/data
-/models
-
-# Byte-compiled / optimized / DLL files
-__pycache__
+# Python
+__pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# Virtual Environments
+.venv/
+.env/
+venv/
+env/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Data and Models (keep structure, ignore content)
+/data/*.csv
+/simple_data/*.csv
+/models/*.zip
+/models/*.pkl
+/models/*.png
+/models/*.h5
+
+# Logs and Outputs
+*.log
+logs/
+outputs/
+tensorboard_logs/
+wandb/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
