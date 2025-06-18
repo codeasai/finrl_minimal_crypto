@@ -1,0 +1,32 @@
+# Development Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Include main requirements
+-r requirements.txt
+
+# Jupyter and Notebook
+jupyter>=1.0.0
+notebook>=7.0.0
+jupyterlab>=4.0.0
+ipywidgets>=8.0.0
+
+# Advanced Technical Analysis
+ta-lib>=0.4.0
+
+# Monitoring and Experiment Tracking
+wandb>=0.16.0
+tensorboard>=2.15.0
+
+# Data Sources (optional)
+wrds>=0.1.0
+
+# Testing and Quality
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.0.0
+
+# Documentation
+sphinx>=7.0.0
+sphinx-rtd-theme>=1.0.0 
