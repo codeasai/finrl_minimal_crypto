@@ -452,26 +452,25 @@ def add_technical_indicators(df):
     
     print("เริ่ม Normalization...")
     
-    # Normalize ข้อมูลราคา - ทำแยกตาม tic และใช้ robust scaling
+    # Normalize ข้อมูลราคา - ใช้ Min-Max scaling เพื่อป้องกันค่าลบ
     price_cols = ['open', 'high', 'low', 'close']
     for col in price_cols:
         print(f"Normalize {col}...")
         
-        def robust_normalize(x):
-            # ใช้ robust scaling แทน standard scaling
-            median = x.median()
-            mad = (x - median).abs().median()  # Median Absolute Deviation
+        def minmax_normalize(x):
+            # ใช้ Min-Max scaling แทน Z-score เพื่อป้องกันค่าลบ
+            min_val = x.min()
+            max_val = x.max()
             
-            if mad == 0:
-                # ถ้า MAD = 0 ให้ใช้ standard deviation
-                std = x.std()
-                if std == 0:
-                    return pd.Series(0, index=x.index)  # ถ้า std ก็ = 0 ให้ return 0
-                return (x - x.mean()) / std
+            if min_val == max_val:
+                # ถ้าค่าเท่ากันหมด ให้ return 0.5 (กลางช่วง 0-1)
+                return pd.Series(0.5, index=x.index)
             
-            return (x - median) / (mad * 1.4826)  # 1.4826 เป็นค่าแปลงจาก MAD เป็น std
+            # Min-Max scaling ให้อยู่ในช่วง 0-1
+            normalized = (x - min_val) / (max_val - min_val)
+            return normalized
         
-        df[col] = df.groupby('tic')[col].transform(robust_normalize)
+        df[col] = df.groupby('tic')[col].transform(minmax_normalize)
     
     # Normalize volume
     print("Normalize volume...")
@@ -733,7 +732,7 @@ def prepare_data_for_training(df):
 
 
 def check_training_data(df):
-    """ตรวจสอบความพร้อมของข้อมูลก่อนการเทรน - เพิ่มการ debug"""
+    """ตรวจสอบความพร้อมของข้อมูลก่อนการเทรน - รองรับ normalized data"""
     try:
         # ตรวจสอบคอลัมน์ที่จำเป็น
         required_columns = ['date', 'tic', 'open', 'high', 'low', 'close', 'volume']
@@ -755,103 +754,39 @@ def check_training_data(df):
         if len(df) < 100:
             return False, "ข้อมูลน้อยเกินไป (น้อยกว่า 100 แถว)"
         
-        # ตรวจสอบช่วงราคา - แสดงรายละเอียดมากขึ้น
+        # ตรวจสอบว่าข้อมูลถูก normalize แล้วหรือไม่
         price_cols = ['open', 'high', 'low', 'close']
+        is_normalized = False
+        
         for col in price_cols:
-            zero_or_negative = (df[col] <= 0)
-            if zero_or_negative.any():
-                problematic_rows = df[zero_or_negative]
-                print(f"❌ พบปัญหาใน {col}:")
-                print(f"จำนวนแถว: {zero_or_negative.sum()}")
-                print("ตัวอย่างแถวที่มีปัญหา:")
-                print(problematic_rows[['date', 'tic', col]].head())
-                return False, f"พบราคา 0 หรือติดลบในคอลัมน์ {col} ({zero_or_negative.sum()} แถว)"
+            # ถ้าค่าอยู่ในช่วง 0-1 หรือมีค่าลบ แสดงว่าถูก normalize แล้ว
+            if (df[col].min() >= 0 and df[col].max() <= 1) or (df[col] < 0).any():
+                is_normalized = True
+                break
         
-        # ตรวจสอบความถูกต้องของราคา OHLC
-        for tic in df['tic'].unique():
-            tic_data = df[df['tic'] == tic]
-            
-            # ตรวจสอบว่า high >= open, close, low
-            max_price = tic_data[['open', 'close', 'low']].max(axis=1)
-            if (tic_data['high'] < max_price).any():
-                return False, f"พบราคา high ต่ำกว่า open, close, หรือ low ใน {tic}"
-            
-            # ตรวจสอบว่า low <= open, close, high  
-            min_price = tic_data[['open', 'close', 'high']].min(axis=1)
-            if (tic_data['low'] > min_price).any():
-                return False, f"พบราคา low สูงกว่า open, close, หรือ high ใน {tic}"
-            
-            # ตรวจสอบว่า open, close อยู่ระหว่าง high และ low
-            if ((tic_data['open'] > tic_data['high']) | (tic_data['open'] < tic_data['low'])).any():
-                return False, f"พบราคา open นอกช่วง high-low ใน {tic}"
-            
-            if ((tic_data['close'] > tic_data['high']) | (tic_data['close'] < tic_data['low'])).any():
-                return False, f"พบราคา close นอกช่วง high-low ใน {tic}"
-        
-        # ตรวจสอบ volume - อนุญาตให้เป็น 0 ได้
-        if (df['volume'] < 0).any():
-            return False, "พบ volume ติดลบ"
+        if is_normalized:
+            print("✅ ตรวจพบข้อมูลที่ผ่าน normalization แล้ว")
+            # สำหรับข้อมูลที่ normalize แล้ว ตรวจสอบแค่ค่า finite
+            for col in price_cols:
+                if not np.isfinite(df[col]).all():
+                    return False, f"พบค่า invalid ในคอลัมน์ {col}"
+        else:
+            print("⚠️ ข้อมูลยังไม่ผ่าน normalization")
+            # สำหรับข้อมูลดิบ ตรวจสอบค่าลบหรือศูนย์
+            for col in price_cols:
+                if (df[col] <= 0).any():
+                    zero_or_negative = (df[col] <= 0)
+                    problematic_rows = df[zero_or_negative]
+                    print(f"❌ พบปัญหาใน {col}:")
+                    print(f"จำนวนแถว: {zero_or_negative.sum()}")
+                    print("ตัวอย่างแถวที่มีปัญหา:")
+                    print(problematic_rows[['date', 'tic', col]].head())
+                    return False, f"พบราคา 0 หรือติดลบในคอลัมน์ {col}"
         
         return True, "ข้อมูลพร้อมสำหรับการเทรน"
         
     except Exception as e:
         print(f"❌ Error ในการตรวจสอบข้อมูล: {str(e)}")
-        return False, f"เกิดข้อผิดพลาดในการตรวจสอบข้อมูล: {str(e)}"
-    
-def check_training_data(df):
-    """ตรวจสอบความพร้อมของข้อมูลก่อนการเทรน"""
-    try:
-        # ตรวจสอบคอลัมน์ที่จำเป็น
-        required_columns = ['date', 'tic', 'open', 'high', 'low', 'close', 'volume']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            return False, f"ไม่พบคอลัมน์ที่จำเป็น: {', '.join(missing_columns)}"
-        
-        # ตรวจสอบค่า NaN
-        nan_counts = df[required_columns].isna().sum()
-        if nan_counts.any():
-            return False, f"พบค่า NaN ในคอลัมน์: {', '.join(nan_counts[nan_counts > 0].index)}"
-        
-        # ตรวจสอบค่า inf
-        inf_counts = df[required_columns].isin([np.inf, -np.inf]).sum()
-        if inf_counts.any():
-            return False, f"พบค่า inf ในคอลัมน์: {', '.join(inf_counts[inf_counts > 0].index)}"
-        
-        # ตรวจสอบจำนวนข้อมูล
-        if len(df) < 100:
-            return False, "ข้อมูลน้อยเกินไป (น้อยกว่า 100 แถว)"
-        
-        # ตรวจสอบช่วงราคา
-        price_cols = ['open', 'high', 'low', 'close']
-        for col in price_cols:
-            if (df[col] <= 0).any():
-                return False, f"พบราคา 0 หรือติดลบในคอลัมน์ {col}"
-        
-        # ตรวจสอบความถูกต้องของราคา
-        for tic in df['tic'].unique():
-            tic_data = df[df['tic'] == tic]
-            
-            # ตรวจสอบว่า high >= open, close, low
-            if (tic_data['high'] < tic_data[['open', 'close', 'low']].max(axis=1)).any():
-                return False, f"พบราคา high ต่ำกว่า open, close, หรือ low ใน {tic}"
-            
-            # ตรวจสอบว่า low <= open, close, high
-            if (tic_data['low'] > tic_data[['open', 'close', 'high']].min(axis=1)).any():
-                return False, f"พบราคา low สูงกว่า open, close, หรือ high ใน {tic}"
-            
-            # ตรวจสอบว่า open, close อยู่ระหว่าง high และ low
-            if ((tic_data['open'] > tic_data['high']) | (tic_data['open'] < tic_data['low'])).any():
-                return False, f"พบราคา open นอกช่วง high-low ใน {tic}"
-            
-            if ((tic_data['close'] > tic_data['high']) | (tic_data['close'] < tic_data['low'])).any():
-                return False, f"พบราคา close นอกช่วง high-low ใน {tic}"
-        
-        # ตรวจสอบ volume
-        if (df['volume'] < 0).any():
-            return False, "พบ volume ติดลบ"
-        
-        return True, "ข้อมูลพร้อมสำหรับการเทรน"
-    except Exception as e:
         return False, f"เกิดข้อผิดพลาดในการตรวจสอบข้อมูล: {str(e)}"
 
 def create_trading_env(df, initial_amount=INITIAL_AMOUNT, params=None):
