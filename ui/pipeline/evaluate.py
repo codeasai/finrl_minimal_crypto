@@ -22,20 +22,26 @@ def load_model_list():
     """Load list of available models"""
     if not os.path.exists(MODEL_DIR):
         return []
-    return [f.replace("minimal_crypto_", "") for f in os.listdir(MODEL_DIR) 
-            if f.startswith("minimal_crypto_")]
+    
+    models = []
+    for f in os.listdir(MODEL_DIR):
+        if f.endswith('.zip'):
+            # Remove .zip extension and add to list
+            model_name = f.replace('.zip', '')
+            models.append(model_name)
+    
+    return models
 
 def load_model(model_name):
     """Load a trained model"""
     try:
-        model_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}")
+        # Add .zip extension if not present
+        if not model_name.endswith('.zip'):
+            model_name = f"{model_name}.zip"
+            
+        model_path = os.path.join(MODEL_DIR, model_name)
         if not os.path.exists(model_path):
             st.error(f"ไม่พบไฟล์โมเดลที่ {model_path}")
-            return None
-            
-        # ตรวจสอบว่าเป็นไฟล์โมเดลหรือไม่
-        if not model_path.endswith('.zip'):
-            st.error(f"ไฟล์ {model_path} ไม่ใช่ไฟล์โมเดลที่ถูกต้อง")
             return None
             
         # โหลดโมเดลด้วย device ที่เหมาะสม
@@ -140,7 +146,16 @@ def get_model_versions(model_name):
         existing_files = [f for f in os.listdir(MODEL_DIR) 
                          if f.startswith(f"{model_name}_v") and f.endswith('.zip')]
         
+        # หากไม่พบ version files ให้ใช้ไฟล์หลักแทน
         if not existing_files:
+            main_file = f"{model_name}.zip"
+            if os.path.exists(os.path.join(MODEL_DIR, main_file)):
+                return [{
+                    'version': 1,
+                    'file': main_file,
+                    'path': os.path.join(MODEL_DIR, main_file),
+                    'modified': datetime.fromtimestamp(os.path.getmtime(os.path.join(MODEL_DIR, main_file)))
+                }]
             return []
         
         # ดึงเลขเวอร์ชั่นและเรียงลำดับ
@@ -254,7 +269,7 @@ def evaluate_agent_ui():
     )
     
     # ดึงรายการเวอร์ชั่นของโมเดล
-    versions = get_model_versions(f"minimal_crypto_{model_name}")
+    versions = get_model_versions(model_name)
     if not versions:
         st.warning("⚠️ ไม่พบเวอร์ชั่นของโมเดลนี้")
         return
@@ -345,7 +360,7 @@ def evaluate_agent_ui():
                     version_info = next(v for v in versions if v['version'] == version)
                     
                     # โหลดโมเดล
-                    model = load_model(version_info['file'].replace("minimal_crypto_", "").replace(".zip", ""))
+                    model = load_model(version_info['file'].replace(".zip", ""))
                     if model is None:
                         continue
                     
