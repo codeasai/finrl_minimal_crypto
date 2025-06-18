@@ -272,7 +272,7 @@ def add_technical_indicators(df):
 
 def create_environment(df):
     """
-    สร้าง trading environment
+    สร้าง trading environment แบบปลอดภัยจาก numpy AttributeError
     """
     print("🏛️ Creating trading environment...")
     
@@ -288,16 +288,45 @@ def create_environment(df):
     
     # แบ่งข้อมูลเป็น train/test โดยใช้สัดส่วน 80/20
     train_size = int(len(df) * 0.8)
-    train_df = df.iloc[:train_size].reset_index(drop=True)
-    test_df = df.iloc[train_size:].reset_index(drop=True)
+    train_df = df.iloc[:train_size].copy().reset_index(drop=True)
+    test_df = df.iloc[train_size:].copy().reset_index(drop=True)
     
-    # ตรวจสอบให้แน่ใจว่า timestamp และ date เป็นรูปแบบที่ถูกต้อง
-    for data in [train_df, test_df]:
+    # ฟังก์ชันเตรียมข้อมูลสำหรับ FinRL แบบปลอดภัย
+    def prepare_finrl_data(data):
+        """แปลงข้อมูลให้เข้ากับ FinRL โดยหลีกเลี่ยง numpy scalar AttributeError"""
+        data = data.copy()
+        
+        # แปลง timestamp และ date
         data['timestamp'] = pd.to_datetime(data['timestamp'])
-        data['date'] = data['timestamp'].dt.date
-        # เรียงข้อมูลตามวันที่
-        data.sort_values(['date', 'tic'], inplace=True)
-        data.reset_index(drop=True, inplace=True)
+        data['date'] = data['timestamp'].dt.strftime('%Y-%m-%d')  # ใช้ string แทน date object
+        
+        # เรียงข้อมูลตามวันที่และ symbol
+        data = data.sort_values(['date', 'tic']).reset_index(drop=True)
+        
+        # แปลงข้อมูลตัวเลขให้เป็น float64 และตรวจสอบ NaN
+        numeric_columns = ['open', 'high', 'low', 'close', 'volume'] + [
+            'sma_20', 'ema_20', 'rsi_14', 
+            'macd', 'macd_signal', 'macd_hist',
+            'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
+            'volume_sma_20', 'volume_ratio'
+        ]
+        
+        for col in numeric_columns:
+            if col in data.columns:
+                # แปลงเป็น pandas Series ชัดเจน และแทนที่ NaN ด้วย 0
+                data[col] = pd.Series(data[col]).astype('float64').fillna(0.0)
+        
+        # ตรวจสอบและแก้ไข inf values
+        data = data.replace([np.inf, -np.inf], 0.0)
+        
+        # ตรวจสอบให้แน่ใจว่าไม่มี NaN
+        data = data.fillna(0.0)
+        
+        return data
+    
+    # เตรียมข้อมูล train และ test
+    train_df = prepare_finrl_data(train_df)
+    test_df = prepare_finrl_data(test_df)
     
     print(f"📚 Training data: {len(train_df)} rows ({train_df['timestamp'].min()} to {train_df['timestamp'].max()})")
     print(f"📝 Testing data: {len(test_df)} rows ({test_df['timestamp'].min()} to {test_df['timestamp'].max()})")
