@@ -19,10 +19,8 @@ from finrl.agents.stablebaselines3.models import DRLAgent
 # Import config
 from config import *
 
-# สร้างโฟลเดอร์สำหรับเก็บข้อมูล
-DATA_DIR = "data"
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+# Use standardized directories from config
+# DATA_DIR, DATA_PREPARE_DIR, and MODEL_DIR are already defined in config.py
 
 # ตรวจสอบและตั้งค่า GPU
 def setup_device():
@@ -139,11 +137,7 @@ def download_crypto_data(force_download=False):
     
     # บันทึกข้อมูล
     try:
-        # สร้างโฟลเดอร์ถ้ายังไม่มี
-        if not os.path.exists(DATA_DIR):
-            os.makedirs(DATA_DIR)
-            print(f"📁 Created directory: {DATA_DIR}")
-        
+        # สร้างโฟลเดอร์ถ้ายังไม่มี (directory already created in config.py)
         # บันทึกข้อมูล
         df.to_csv(data_file, index=False)
         print(f"💾 Saved data to {data_file}")
@@ -406,9 +400,7 @@ def train_agent(train_env):
             total_timesteps=100000  # เพิ่มจำนวน timesteps
         )
         
-        # บันทึก model
-        if not os.path.exists(MODEL_DIR):
-            os.makedirs(MODEL_DIR)
+        # บันทึก model (directory already created in config.py)
         model_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}")
         trained_model.save(model_path)
         print(f"💾 Model saved to {model_path}")
@@ -438,8 +430,7 @@ def train_agent(train_env):
             total_timesteps=100000
         )
         
-        if not os.path.exists(MODEL_DIR):
-            os.makedirs(MODEL_DIR)
+        # Directory already created in config.py
         model_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}_simple")
         trained_model.save(model_path)
         print(f"💾 Model saved to {model_path}")

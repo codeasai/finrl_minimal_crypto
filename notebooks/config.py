@@ -27,8 +27,17 @@ HMAX = 1000
 # Transaction cost percentage
 TRANSACTION_COST_PCT = 0.001  # 0.1%
 
-# Model save directory
-MODEL_DIR = "models"
+# ===========================================
+# STANDARDIZED DIRECTORY STRUCTURE
+# ===========================================
+# Use same directories as main config for consistency across all approaches
+
+# Data directories (same as root config.py)
+DATA_DIR = "../data"  # Relative to notebooks directory
+DATA_PREPARE_DIR = "../data/data_prepare"
+
+# Model directory (same as root config.py)
+MODEL_DIR = "../models"  # Relative to notebooks directory
 
 # ==================== TECHNICAL INDICATORS ====================
 
