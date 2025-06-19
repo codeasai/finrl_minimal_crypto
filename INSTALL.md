@@ -12,7 +12,7 @@ cd finrl_minimal_crypto
 # Install dependencies
 pip install -r requirements.txt
 
-# Run basic agent
+# Run core agent
 python main.py
 ```
 
@@ -29,7 +29,7 @@ conda env create -f environment.yml
 # Activate environment
 conda activate finrl_crypto
 
-# Run basic agent
+# Run core agent
 python main.py
 ```
 

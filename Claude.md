@@ -11,19 +11,21 @@ Claude ใช้ระบบ **Memory** ที่สามารถจดจำ�
 ### 1. **Project Architecture** (ID: 628168830572388761)
 ```
 โปรเจค finrl_minimal_crypto เป็น cryptocurrency trading agents ใช้ Deep Reinforcement Learning ผ่าน FinRL library 
-มี 3 main files หลัก:
-1. main.py - basic agent พื้นฐาน, PPO algorithm, technical indicators พื้นฐาน
-2. simple_advanced_agent.py - แนะนำ, advanced แบบง่าย, 11 indicators, แก้ปัญหา AttributeError  
-3. advanced_crypto_agent.py - full advanced, 40+ indicators, complex features
+มี 3 แนวทางหลักในการ implement:
+
+1. Native Python (main.py) - Core implementation, PPO algorithm, technical indicators พื้นฐาน, command line interface
+2. Jupyter Notebooks (notebooks/) - Interactive development, 5 notebooks workflow, เหมาะสำหรับการเรียนรู้และ research
+3. Streamlit UI (ui/) - Web interface, grade system, ง่ายต่อการใช้งาน, เหมาะสำหรับ end users
 
 โครงสร้าง:
 - models/ (trained models)
 - data/ (crypto data) 
-- notebooks/ (jupyter)
-- ui/ (streamlit app)
-- config.py (configuration)
+- notebooks/ (jupyter workflow with 5 main notebooks + verification)
+- ui/ (streamlit app with 6 pages + pipeline)
+- config.py (main configuration)
+- notebooks/config.py (extended configuration)
 
-แนะนำใช้ simple_advanced_agent.py เพราะเสถียรสุด
+แนะนำใช้ Jupyter Notebooks สำหรับการเรียนรู้ หรือ Streamlit UI สำหรับการใช้งานจริง
 ```
 
 ### 2. **Configuration & Structure** (ID: 1079392283091298647)

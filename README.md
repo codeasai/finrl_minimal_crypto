@@ -1,59 +1,62 @@
 # FinRL Minimal Crypto Trading Agents
 
-โปรเจคนี้เป็น cryptocurrency trading agents ที่ใช้ Deep Reinforcement Learning (DRL) ผ่าน FinRL library มี 3 main features หลัก:
+โปรเจคนี้เป็น cryptocurrency trading agents ที่ใช้ Deep Reinforcement Learning (DRL) ผ่าน FinRL library มี 3 แนวทางหลักในการ implement:
 
-## 🚀 Main Features
+## 🚀 Implementation Approaches
 
-### 1. **Basic Crypto Agent** (`main.py`)
-- Agent พื้นฐานสำหรับ crypto trading
-- ใช้ PPO algorithm
+### 1. **Native Python** (`main.py`)
+- Core crypto trading agent implementation
+- ใช้ PPO algorithm จาก Stable Baselines3
 - Technical indicators พื้นฐาน (SMA, RSI, MACD, Bollinger Bands)
-- เหมาะสำหรับผู้เริ่มต้น
+- รัน command line โดยตรง
+- เหมาะสำหรับการพัฒนาและ debugging
 
-### 2. **Simple Advanced Agent** (`simple_advanced_agent.py`)
-- Advanced agent แบบง่าย ที่แก้ปัญหา AttributeError
-- ใช้หลักการจาก main.py ที่ทำงานได้เรียบร้อย
-- Technical indicators ครบครัน (11 indicators)
-- ประสิทธิภาพดีกว่า basic agent
+### 2. **Jupyter Notebooks** (`notebooks/`)
+- Interactive development environment
+- Step-by-step workflow ตั้งแต่ data preparation ถึง evaluation
+- เหมาะสำหรับการทดลองและ research
+- มี 5 notebooks หลัก: preparation, creation, training, evaluation, implementation
 
-### 3. **Full Advanced Agent** (`advanced_crypto_agent.py`)
-- Advanced agent แบบเต็มรูปแบบ
-- Technical indicators มากกว่า 40 ตัว
-- Cross-asset features และ market regime analysis
-- Ensemble models และ advanced risk management
+### 3. **Streamlit UI** (`ui/`)
+- Web-based user interface
+- ง่ายต่อการใช้งาน ไม่ต้องเขียนโค้ด
+- Grade system การเทรน (N, D, C, B, A, S)
+- เหมาะสำหรับ end users และ production deployment
 
 ## 📁 Project Structure
 
 ```
 finrl_minimal_crypto/
-├── main.py                     # Basic crypto agent
-├── simple_advanced_agent.py    # Simple advanced agent (แนะนำ)
-├── advanced_crypto_agent.py    # Full advanced agent
+├── main.py                     # Core crypto agent implementation
 ├── config.py                   # Configuration settings
 ├── requirements.txt            # Python dependencies
 ├── models/                     # Trained models directory
-│   ├── minimal_crypto_ppo.zip          # Model จาก main.py
-│   ├── simple_advanced_crypto_ppo.zip  # Model จาก simple_advanced_agent.py
-│   └── performance_analysis.png        # Performance charts
+│   └── trained models (.zip files)
 ├── data/                       # Data directory
-│   ├── crypto_data.csv                 # Data สำหรับ main.py
-│   ├── advanced_crypto_data.csv        # Data สำหรับ advanced_crypto_agent.py
-│   └── simple_advanced_crypto_data.csv # Data เพิ่มเติม
-├── simple_data/               # Data สำหรับ simple_advanced_agent.py
-│   └── simple_crypto_data.csv
-├── notebooks/                 # Jupyter notebooks
+│   └── crypto_data.csv         # Cryptocurrency data
+├── notebooks/                  # Jupyter notebooks workflow
 │   ├── 1_data_preparation.ipynb
 │   ├── 2_agent_creation.ipynb
 │   ├── 3_agent_training.ipynb
 │   ├── 4_agent_evaluation.ipynb
-│   └── 5_trading_implementation.ipynb
-└── ui/                        # Streamlit UI
-    ├── app.py
-    └── pipeline/
-        ├── data_loader.py
-        ├── train.py
-        ├── evaluate.py
-        └── agent_manager.py
+│   ├── 5_trading_implementation.ipynb
+│   ├── verification_script.py  # System verification
+│   ├── config.py              # Extended configuration
+│   ├── agents/                # Agent configs
+│   ├── models/                # Notebook models
+│   ├── data/                  # Notebook data
+│   └── processed_data/        # Processed datasets
+└── ui/                        # Streamlit web interface
+    ├── app.py                 # Main dashboard
+    ├── pages/                 # UI pages
+    │   ├── 1_Data_Loader.py
+    │   ├── 2_Data_Prepare.py
+    │   ├── 3_Train_Agent.py
+    │   ├── 4_Test_Agent.py
+    │   ├── 5_Evaluate_Performance.py
+    │   └── 6_Manage_Agents.py
+    ├── pipeline/              # Backend logic
+    └── STREAMLIT_GUIDE.md     # UI documentation
 ```
 
 ## 🛠️ Installation
@@ -75,39 +78,31 @@ pip install -r requirements.txt
 
 ## 🚀 Quick Start
 
-### วิธีที่ 1: Basic Agent (เริ่มต้น)
+### วิธีที่ 1: Native Python (Command Line)
 ```bash
 python main.py
 ```
 
-### วิธีที่ 2: Simple Advanced Agent (แนะนำ)
+### วิธีที่ 2: Jupyter Notebooks (Interactive)
 ```bash
-python simple_advanced_agent.py
+jupyter notebook notebooks/
+# เริ่มจาก 1_data_preparation.ipynb
 ```
 
-### วิธีที่ 3: Full Advanced Agent (ขั้นสูง)
-```bash
-python advanced_crypto_agent.py
-```
-
-### วิธีที่ 4: Streamlit UI
+### วิธีที่ 3: Streamlit UI (Web Interface)
 ```bash
 cd ui
 streamlit run app.py
+# เปิด browser ที่ http://localhost:8501
 ```
 
-### วิธีที่ 5: Jupyter Notebooks
-```bash
-jupyter notebook notebooks/
-```
+## 📊 Implementation Comparison
 
-## 📊 Performance Comparison
-
-| Agent Type | Return | Sharpe Ratio | Complexity | Recommended |
-|------------|--------|--------------|------------|-------------|
-| Basic | ~0% | 0.002 | ⭐ | Beginners |
-| Simple Advanced | ~10.81% | 0.653 | ⭐⭐ | **✅ Most Users** |
-| Full Advanced | Variable | Variable | ⭐⭐⭐⭐⭐ | Researchers |
+| Approach | Ease of Use | Flexibility | Recommended For |
+|----------|------------|-------------|-----------------|
+| **Native Python** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Developers, Debugging |
+| **Jupyter Notebooks** | ⭐⭐⭐ | ⭐⭐⭐⭐ | **✅ Research, Learning** |
+| **Streamlit UI** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | **✅ End Users, Production** |
 
 ## 🔧 Configuration
 
@@ -148,20 +143,24 @@ TOTAL_TIMESTEPS = 100000
 
 ## 🐛 Troubleshooting
 
-### ปัญหา AttributeError: 'numpy.float64' object has no attribute 'values'
-**แก้ไข:** ใช้ `simple_advanced_agent.py` แทน `advanced_crypto_agent.py`
+### ปัญหา Module Import Error
+**แก้ไข:** ตรวจสอบ dependencies ใน `requirements.txt` และ environment
 
-### ปัญหา TA-Lib installation
-**แก้ไข:** ดูคำแนะนำใน `install_talib.md`
+### ปัญหา Data Loading
+**แก้ไข:** ตรวจสอบ internet connection และ yfinance API status
 
 ### ปัญหา GPU/CUDA
-**แก้ไข:** Agents ทำงานได้ทั้ง CPU และ GPU
+**แก้ไข:** Agent ทำงานได้ทั้ง CPU และ GPU โดยอัตโนมัติ
+
+### ปัญหา Streamlit Port
+**แก้ไข:** ใช้ `streamlit run app.py --port 8502` ถ้า port 8501 ถูกใช้
 
 ## 📚 Documentation
 
+- **Installation:** ดูใน `INSTALL.md` 
 - **Notebooks:** ดูใน `notebooks/` directory
-- **Advanced Features:** ดูใน `README_advanced_agent.md`
-- **UI Guide:** ดูใน `ui/` directory
+- **UI Guide:** ดูใน `ui/STREAMLIT_GUIDE.md`
+- **Claude Memory:** ดูใน `Claude.md`
 
 ## 🤝 Contributing
 
@@ -184,4 +183,4 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-**🎯 แนะนำให้เริ่มต้นด้วย `simple_advanced_agent.py` เพราะทำงานได้เสถียรและให้ผลลัพธ์ดี!** 
+**🎯 แนะนำให้เริ่มต้นด้วย Jupyter Notebooks สำหรับการเรียนรู้ หรือ Streamlit UI สำหรับการใช้งานจริง!** 
