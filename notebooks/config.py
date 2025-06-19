@@ -41,8 +41,8 @@ MODEL_DIR = "../models"  # Relative to notebooks directory
 
 # ==================== TECHNICAL INDICATORS ====================
 
-# Technical indicators to use
-TECHNICAL_INDICATORS = [
+# Technical indicators to use (same as main config.py)
+INDICATORS = [
     'sma_20',         # Simple Moving Average (20 days)
     'ema_20',         # Exponential Moving Average (20 days)
     'rsi_14',         # Relative Strength Index (14 days)
@@ -56,6 +56,9 @@ TECHNICAL_INDICATORS = [
     'volume_sma_20',  # Volume Simple Moving Average (20 days)
     'volume_ratio'    # Volume ratio
 ]
+
+# Backward compatibility
+TECHNICAL_INDICATORS = INDICATORS
 
 # ==================== MODEL PARAMETERS ====================
 

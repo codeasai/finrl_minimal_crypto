@@ -325,13 +325,8 @@ def create_environment(df):
     print(f"📚 Training data: {len(train_df)} rows ({train_df['timestamp'].min()} to {train_df['timestamp'].max()})")
     print(f"📝 Testing data: {len(test_df)} rows ({test_df['timestamp'].min()} to {test_df['timestamp'].max()})")
     
-    # กำหนด indicators ที่ใช้
-    indicators = [
-        'sma_20', 'ema_20', 'rsi_14', 
-        'macd', 'macd_signal', 'macd_hist',
-        'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
-        'volume_sma_20', 'volume_ratio'
-    ]
+    # ใช้ indicators จาก config.py
+    indicators = INDICATORS
     
     # สร้าง environment สำหรับ training
     env_kwargs = {
