@@ -36,13 +36,14 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# Data and Models (keep structure, ignore content)
-/data/*.csv
-/simple_data/*.csv
-/models/*.zip
-/models/*.pkl
-/models/*.png
-/models/*.h5
+# Data and Models (ignore entire directories with content)
+data/
+models/
+simple_data/
+
+# Backup patterns
+*_backup/
+backup_*/
 
 # Logs and Outputs
 *.log
