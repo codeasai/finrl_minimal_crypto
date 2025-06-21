@@ -9,7 +9,7 @@ import gymnasium as gym
 from typing import Dict, List, Tuple
 import math
 
-from config import *
+from config.config import *
 
 class EnhancedCryptoTradingEnv(gym.Env):
     """

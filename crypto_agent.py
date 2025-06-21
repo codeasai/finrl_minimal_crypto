@@ -41,13 +41,13 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
-# Import existing components
-from config import *
+# Import configuration
+from config.config import *
 try:
-    from sac_configs import RL_GradeSelector
-    from models.sac.sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager
+    from config.sac_configs import RL_GradeSelector
+    from src.sac.sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager
 except ImportError:
-    print("Warning: Some components not found. Basic functionality will be available.")
+    print("Warning: sac_configs not available. Using basic configuration.")
     RL_GradeSelector = None
     SAC_AgentMetadata = None
     SAC_MetadataManager = None

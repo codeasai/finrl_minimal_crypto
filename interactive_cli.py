@@ -32,7 +32,7 @@ from typing import Dict, List, Optional, Any
 
 # Import unified agent
 from crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
-from config import *
+from config.config import *
 
 # Data loading utilities
 import yfinance as yf

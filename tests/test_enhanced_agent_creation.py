@@ -18,8 +18,11 @@ import os
 import pandas as pd
 from datetime import datetime
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import components
-from algorithm_configs import AlgorithmConfigs, get_algorithm_config, list_algorithms
+from config.algorithm_configs import AlgorithmConfigs, get_algorithm_config, list_algorithms
 from interactive_cli import InteractiveCLI, AgentManager, DataManager
 from crypto_agent import create_crypto_sac_agent
 

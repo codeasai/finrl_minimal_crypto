@@ -27,7 +27,7 @@ from typing import Optional, Dict, Any
 # Import unified components
 from crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
 from interactive_cli import InteractiveCLI, AgentManager, DataManager
-from config import *
+from config.config import *
 
 def setup_argument_parser():
     """Setup command-line argument parser"""
