@@ -1,186 +1,271 @@
 # FinRL Minimal Crypto Trading Agents
 
-โปรเจคนี้เป็น cryptocurrency trading agents ที่ใช้ Deep Reinforcement Learning (DRL) ผ่าน FinRL library มี 3 แนวทางหลักในการ implement:
+โปรเจคนี้เป็น cryptocurrency trading agents ที่ใช้ Deep Reinforcement Learning (DRL) โดยเน้น **Native Python First Development** กับการพัฒนาแบบ incremental
 
-## 🚀 Implementation Approaches
+## 🎯 Development Philosophy
 
-### 1. **Native Python** (`main.py`)
-- Core crypto trading agent implementation
-- ใช้ PPO algorithm จาก Stable Baselines3
-- Technical indicators พื้นฐาน (SMA, RSI, MACD, Bollinger Bands)
-- รัน command line โดยตรง
-- เหมาะสำหรับการพัฒนาและ debugging
+### **Native Python First + Incremental Development**
+- 🚀 **Core Platform**: `main.py` และ `sac.py` เป็นหลักในการพัฒนา
+- 📈 **Incremental**: พัฒนาทีละน้อย test ทีละ step
+- ⚡ **Quick Iteration**: Fast feedback loop สำหรับการทดลอง
+- 🎯 **Focus**: หลีกเลี่ยง complex systems ที่ไม่จำเป็น
 
-### 2. **Jupyter Notebooks** (`notebooks/`)
-- Interactive development environment
-- Step-by-step workflow ตั้งแต่ data preparation ถึง evaluation
-- เหมาะสำหรับการทดลองและ research
-- มี 5 notebooks หลัก: preparation, creation, training, evaluation, implementation
+### **Development Flow**
+```
+Native Python → Test & Validate → Notebooks → Streamlit UI → Production
+```
 
-### 3. **Streamlit UI** (`ui/`)
-- Web-based user interface
-- ง่ายต่อการใช้งาน ไม่ต้องเขียนโค้ด
-- Grade system การเทรน (N, D, C, B, A, S)
-- เหมาะสำหรับ end users และ production deployment
+## 🚀 Getting Started (Recommended Path)
 
-## 📁 Project Structure
+### 1. **Quick Start - Native Python** 
+```bash
+# Clone และติดตั้ง
+git clone <repository-url>
+cd finrl_minimal_crypto
+pip install -r requirements.txt
+
+# รันทันที - FinRL-based agent
+python main.py
+
+# หรือ SAC agent (Custom implementation)
+python sac.py
+```
+
+### 2. **การพัฒนาแบบ Incremental**
+```bash
+# 1. ทดลองกับ Native Python ก่อน
+python sac.py  # Test basic SAC
+
+# 2. ปรับปรุงทีละน้อย
+# - แก้ reward function
+# - ปรับ hyperparameters  
+# - เพิ่ม technical indicators
+
+# 3. Test ทุกการเปลี่ยนแปลง
+python sac.py  # Validate improvements
+
+# 4. เมื่อ stable แล้วค่อยขยายไป platforms อื่น
+```
+
+## 📁 Project Structure (Development-Focused)
 
 ```
 finrl_minimal_crypto/
-├── main.py                     # Core crypto agent implementation
-├── config.py                   # Configuration settings
-├── requirements.txt            # Python dependencies
-├── models/                     # Trained models directory
-│   └── trained models (.zip files)
-├── data/                       # Data directory
-│   └── crypto_data.csv         # Cryptocurrency data
-├── notebooks/                  # Jupyter notebooks workflow
-│   ├── 1_data_preparation.ipynb
-│   ├── 2_agent_creation.ipynb
-│   ├── 3_agent_training.ipynb
-│   ├── 4_agent_evaluation.ipynb
-│   ├── 5_trading_implementation.ipynb
-│   ├── verification_script.py  # System verification
-│   ├── config.py              # Extended configuration
-│   ├── agents/                # Agent configs
-│   ├── models/                # Notebook models
-│   ├── data/                  # Notebook data
-│   └── processed_data/        # Processed datasets
-└── ui/                        # Streamlit web interface
-    ├── app.py                 # Main dashboard
-    ├── pages/                 # UI pages
-    │   ├── 1_Data_Loader.py
-    │   ├── 2_Data_Prepare.py
-    │   ├── 3_Train_Agent.py
-    │   ├── 4_Test_Agent.py
-    │   ├── 5_Evaluate_Performance.py
-    │   └── 6_Manage_Agents.py
-    ├── pipeline/              # Backend logic
-    └── STREAMLIT_GUIDE.md     # UI documentation
+├── 🎯 CORE DEVELOPMENT PLATFORM
+│   ├── main.py                 # FinRL-based agent (stable)
+│   ├── sac.py                  # SAC agent (active development)
+│   ├── config.py               # Shared configuration
+│   └── enhanced_crypto_env.py  # Custom environment
+│
+├── 🧪 DEVELOPMENT SUPPORT
+│   ├── improved_sac.py         # Enhanced SAC implementation
+│   ├── sac_configs.py          # Grade-based configurations
+│   ├── test_*.py               # Testing scripts
+│   └── backtest_sac.py         # Backtesting tools
+│
+├── 📊 DATA & MODELS
+│   ├── data/                   # Cryptocurrency data
+│   ├── models/                 # Trained models
+│   └── logs/                   # Training logs
+│
+├── 📚 INTEGRATION PLATFORMS (Secondary)
+│   ├── notebooks/              # Jupyter workflow
+│   │   ├── 1_data_preparation.ipynb
+│   │   ├── 2_agent_creation.ipynb
+│   │   ├── 3_agent_training.ipynb
+│   │   ├── 4_agent_evaluation.ipynb
+│   │   └── 5_trading_implementation.ipynb
+│   │
+│   └── ui/                     # Streamlit interface
+│       ├── app.py              # Dashboard
+│       └── pages/              # UI pages
+│
+└── 📖 DOCUMENTATION
+    ├── README.md               # This file
+    ├── INSTALL.md              # Installation guide
+    ├── SAC_OPTIMIZATION_GUIDE.md
+    ├── IMPLEMENTATION_GUIDE.md
+    └── STRATEGY_IMPROVEMENT_GUIDE.md
 ```
 
 ## 🛠️ Installation
 
-### Quick Install
+### Quick Install (Recommended)
 ```bash
-git clone <repository-url>
-cd finrl_minimal_crypto
 pip install -r requirements.txt
 ```
 
 ### Detailed Installation
 📖 **ดูคำแนะนำการติดตั้งแบบละเอียดใน [INSTALL.md](INSTALL.md)**
 
-- ✅ Tested package versions
-- 🐛 Common issues & solutions  
-- 🔧 Development setup
-- 📋 System requirements
+## 🎯 Core Development Platforms
 
-## 🚀 Quick Start
-
-### วิธีที่ 1: Native Python (Command Line)
+### 1. **main.py** - FinRL-based Agent
 ```bash
 python main.py
 ```
+- ✅ **Stable**: ใช้ FinRL framework
+- 🔧 **Algorithm**: PPO (default) หรือ SAC
+- 📊 **Features**: Technical indicators, GPU/CPU auto-detection
+- 🎯 **Use Case**: Baseline comparison, stable reference
 
-### วิธีที่ 2: Jupyter Notebooks (Interactive)
+### 2. **sac.py** - Custom SAC Agent
 ```bash
-jupyter notebook notebooks/
-# เริ่มจาก 1_data_preparation.ipynb
+python sac.py
 ```
+- 🚀 **Active Development**: Custom implementation
+- 🔧 **Algorithm**: SAC (Soft Actor-Critic)
+- ⚡ **Performance**: Optimized for crypto trading
+- 🎯 **Use Case**: Main development platform
 
-### วิธีที่ 3: Streamlit UI (Web Interface)
-```bash
-cd ui
-streamlit run app.py
-# เปิด browser ที่ http://localhost:8501
-```
+## 📊 Algorithm Comparison
 
-## 📊 Implementation Comparison
-
-| Approach | Ease of Use | Flexibility | Recommended For |
-|----------|------------|-------------|-----------------|
-| **Native Python** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Developers, Debugging |
-| **Jupyter Notebooks** | ⭐⭐⭐ | ⭐⭐⭐⭐ | **✅ Research, Learning** |
-| **Streamlit UI** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | **✅ End Users, Production** |
+| Algorithm | Implementation | Status | Performance | Use Case |
+|-----------|---------------|---------|-------------|----------|
+| **PPO** | FinRL-based | ✅ Stable | Baseline | Reference |
+| **SAC** | Custom | 🚀 Active | **Optimized** | **Primary** |
 
 ## 🔧 Configuration
 
 แก้ไขไฟล์ `config.py`:
 
 ```python
-# Crypto symbols to trade
+# Core settings
 CRYPTO_SYMBOLS = ['BTC-USD']
-
-# Trading parameters
 INITIAL_AMOUNT = 100000
-HMAX = 100
 TRANSACTION_COST_PCT = 0.001
 
-# Training parameters
-TOTAL_TIMESTEPS = 100000
+# SAC-specific settings  
+SAC_TIMESTEPS = 50000
+SAC_BUFFER_SIZE = 100000
+SAC_LEARNING_RATE = 3e-4
+
+# Technical indicators (12 indicators)
+INDICATORS = [
+    'sma_20', 'ema_20', 'rsi', 'macd', 'macd_signal', 
+    'macd_histogram', 'bb_upper', 'bb_middle', 'bb_lower', 
+    'bb_std', 'volume_sma', 'volume_ratio'
+]
 ```
 
-## 📈 Features
+## 📈 Development Workflow
 
-### Technical Indicators
-- **Basic:** SMA, RSI, MACD, Bollinger Bands
-- **Advanced:** 40+ indicators including ADX, CCI, Stochastic, ATR
-- **Cross-asset:** BTC correlation, Beta analysis
-- **Market Regime:** Trend strength, Volatility regime
+### Phase 1: Native Python Development
+```bash
+# 1. Start with basic SAC
+python sac.py
 
-### Machine Learning
-- **Algorithm:** PPO (Proximal Policy Optimization)
-- **Environment:** FinRL StockTradingEnv
-- **Reward:** Portfolio return with risk adjustment
-- **Features:** Technical indicators + market data
+# 2. Incremental improvements
+# - Modify reward function in sac.py
+# - Adjust hyperparameters
+# - Add new technical indicators
 
-### Risk Management
-- **Transaction Costs:** 0.1% default
-- **Position Sizing:** Maximum 100 shares per asset
-- **Drawdown Control:** Built-in risk metrics
-- **Diversification:** Multi-asset portfolio
+# 3. Test each change
+python sac.py  # Validate improvement
 
-## 🐛 Troubleshooting
+# 4. Backtest performance
+python backtest_sac.py
+```
 
-### ปัญหา Module Import Error
-**แก้ไข:** ตรวจสอบ dependencies ใน `requirements.txt` และ environment
+### Phase 2: Enhanced Features
+```bash
+# 1. Test enhanced environment
+python test_enhanced_environment.py
 
-### ปัญหา Data Loading
-**แก้ไข:** ตรวจสอบ internet connection และ yfinance API status
+# 2. Compare implementations
+python test_enhanced_vs_original.py
 
-### ปัญหา GPU/CUDA
-**แก้ไข:** Agent ทำงานได้ทั้ง CPU และ GPU โดยอัตโนมัติ
+# 3. Use improved SAC
+python improved_sac.py
+```
 
-### ปัญหา Streamlit Port
-**แก้ไข:** ใช้ `streamlit run app.py --port 8502` ถ้า port 8501 ถูกใช้
+### Phase 3: Integration (When Native Python is stable)
+```bash
+# 1. Update notebooks
+jupyter notebook notebooks/
+
+# 2. Update Streamlit UI
+cd ui && streamlit run app.py
+```
+
+## 🎯 Quick Development Tips
+
+### ⚡ Fast Iteration
+```bash
+# Quick test with minimal timesteps
+python sac.py --timesteps 5000
+
+# Quick backtest
+python backtest_sac.py --days 30
+```
+
+### 🔍 Debugging
+```bash
+# Enable verbose logging
+python sac.py --verbose
+
+# Test environment only
+python test_enhanced_environment.py
+```
+
+### 📊 Performance Testing
+```bash
+# Compare SAC vs PPO
+python test_enhanced_vs_original.py
+
+# Detailed SAC analysis
+python test_sac_results.py
+```
 
 ## 📚 Documentation
 
-- **Installation:** ดูใน `INSTALL.md` 
-- **Notebooks:** ดูใน `notebooks/` directory
-- **UI Guide:** ดูใน `ui/STREAMLIT_GUIDE.md`
-- **Claude Memory:** ดูใน `Claude.md`
+### 🎯 Core Guides
+- **[INSTALL.md](INSTALL.md)** - Installation & setup
+- **[SAC_OPTIMIZATION_GUIDE.md](SAC_OPTIMIZATION_GUIDE.md)** - SAC optimization
+- **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** - Implementation steps
+- **[STRATEGY_IMPROVEMENT_GUIDE.md](STRATEGY_IMPROVEMENT_GUIDE.md)** - Strategy improvements
+
+### 📖 Reference
+- **[FINRL_MODELS_GUIDE.md](FINRL_MODELS_GUIDE.md)** - RL algorithms overview
+- **[Claude.md](Claude.md)** - Development workflow with Claude
+
+## 🐛 Troubleshooting
+
+### Common Issues
+- **Module Import Error**: ตรวจสอบ `pip install -r requirements.txt`
+- **Data Loading**: ตรวจสอบ internet connection
+- **GPU Issues**: Agent ทำงานทั้ง CPU/GPU อัตโนมัติ
+- **Performance Issues**: ลด timesteps สำหรับการทดสอบ
+
+### Quick Fixes
+```bash
+# Reset environment
+pip install -r requirements.txt --force-reinstall
+
+# Test basic functionality
+python -c "import pandas, numpy, yfinance; print('✅ Core packages OK')"
+
+# Verify SAC implementation
+python test_enhanced_environment.py
+```
+
+## 🎯 Next Steps
+
+1. **เริ่มต้น**: `python sac.py`
+2. **ปรับปรุง**: แก้ reward function ใน `sac.py`
+3. **ทดสอบ**: `python backtest_sac.py`
+4. **เปรียบเทียบ**: `python test_enhanced_vs_original.py`
+5. **ขยายผล**: อัพเดท notebooks และ UI
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🙏 Acknowledgments
-
-- [FinRL](https://github.com/AI4Finance-Foundation/FinRL) - Financial Reinforcement Learning
-- [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3) - RL Algorithms
-- [yfinance](https://github.com/ranaroussi/yfinance) - Yahoo Finance API
-- [TA-Lib](https://github.com/mrjbq7/ta-lib) - Technical Analysis Library
+2. Create feature branch (`git checkout -b feature/sac-improvement`)
+3. **Test in Native Python first** (`python sac.py`)
+4. Commit changes (`git commit -m 'Improve SAC reward function'`)
+5. Push to branch (`git push origin feature/sac-improvement`)
+6. Open Pull Request
 
 ---
 
-**🎯 แนะนำให้เริ่มต้นด้วย Jupyter Notebooks สำหรับการเรียนรู้ หรือ Streamlit UI สำหรับการใช้งานจริง!** 
+**🎯 เริ่มต้นด้วย: `python sac.py` สำหรับการพัฒนาหลัก!** 
