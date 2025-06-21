@@ -31,7 +31,7 @@ import pickle
 from typing import Dict, List, Optional, Any
 
 # Import unified agent
-from crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
+from ..agents.crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
 from config.config import *
 
 # Data loading utilities
@@ -386,7 +386,7 @@ class InteractiveCLI:
         
         # Check available feature data
         try:
-            from src.data_feature import get_crypto_feature_summary
+            from ..data_feature import get_crypto_feature_summary
             feature_summary = get_crypto_feature_summary()
             
             if feature_summary['total_files'] > 0:
@@ -476,17 +476,17 @@ class InteractiveCLI:
         try:
             # Import appropriate agent class based on algorithm
             if selected_algorithm == 'SAC':
-                from crypto_agent import create_crypto_sac_agent
+                from ..agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             elif selected_algorithm == 'PPO':
                 # For now, use SAC as base - can be extended later
                 print("⚠️ PPO implementation coming soon. Using SAC for now.")
-                from crypto_agent import create_crypto_sac_agent
+                from ..agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             else:
                 # For other algorithms, use SAC as fallback
                 print(f"⚠️ {selected_algorithm} implementation coming soon. Using SAC for now.")
-                from crypto_agent import create_crypto_sac_agent
+                from ..agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             
             # Set additional agent properties
@@ -538,7 +538,7 @@ class InteractiveCLI:
                     print("\n🏗️ Creating trading environment...")
                     if environment_type == 'enhanced':
                         # Use enhanced environment
-                        from enhanced_crypto_env import EnhancedCryptoTradingEnv
+                        from ..environments.enhanced_crypto_env import EnhancedCryptoTradingEnv
                         train_env, test_env = agent.create_environment(training_data, env_class=EnhancedCryptoTradingEnv)
                     else:
                         # Use basic environment
@@ -566,7 +566,7 @@ class InteractiveCLI:
     def _load_feature_data_for_symbols(self, symbols):
         """Helper function to load feature data for selected symbols"""
         try:
-            from src.data_feature import CryptoFeatureProcessor
+            from ..data_feature import CryptoFeatureProcessor
             processor = CryptoFeatureProcessor()
             
             # Get available feature files

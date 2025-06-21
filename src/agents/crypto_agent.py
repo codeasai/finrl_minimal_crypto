@@ -45,7 +45,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from config.config import *
 try:
     from config.sac_configs import RL_GradeSelector
-    from src.sac.sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager
+    from ..sac.sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager
 except ImportError:
     print("Warning: sac_configs not available. Using basic configuration.")
     RL_GradeSelector = None

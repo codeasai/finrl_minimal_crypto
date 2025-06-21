@@ -31,8 +31,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Import unified components
-from crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
-from interactive_cli import InteractiveCLI, AgentManager, DataManager
+from src.agents.crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
+from src.cli.interactive_cli import InteractiveCLI, AgentManager, DataManager
 from config.config import *
 
 # Legacy imports (optional)
@@ -432,7 +432,7 @@ def train_mode(grade='C', algorithm='SAC', environment='enhanced', timesteps=Non
         if environment == 'enhanced':
             # Use enhanced environment
             try:
-                from enhanced_crypto_env import EnhancedCryptoTradingEnv
+                from src.environments.enhanced_crypto_env import EnhancedCryptoTradingEnv
                 train_env, test_env = agent.create_environment(data, env_class=EnhancedCryptoTradingEnv)
             except ImportError:
                 if verbose >= 1:
