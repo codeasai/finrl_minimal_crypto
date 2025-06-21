@@ -65,7 +65,7 @@ finrl_minimal_crypto/
 │
 ├── 📊 DATA & MODELS
 │   ├── data/                   # Cryptocurrency data
-│   ├── models/                 # Trained models
+│   ├── agents/                 # Trained agents
 │   └── logs/                   # Training logs
 │
 ├── 📚 INTEGRATION PLATFORMS (Secondary)

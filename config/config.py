@@ -59,7 +59,7 @@ DATA_DIR = "data"
 DATA_PREPARE_DIR = os.path.join(DATA_DIR, "data_prepare")
 
 # Root models directory for trained agents
-MODEL_DIR = "models"
+MODEL_DIR = "agents"
 
 # Data sources configuration
 DATA_SOURCES = {

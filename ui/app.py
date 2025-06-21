@@ -50,13 +50,13 @@ with col1:
         st.metric("📊 Data Files", 0)
 
 with col2:
-    # ตรวจสอบโฟลเดอร์ models
-    models_dir = root_path / "models"
-    if models_dir.exists():
-        model_files = len([f for f in models_dir.glob("*.zip")])
-        st.metric("🤖 Trained Models", model_files)
+    # ตรวจสอบโฟลเดอร์ agents
+    agents_dir = root_path / "agents"
+    if agents_dir.exists():
+        model_files = len([f for f in agents_dir.glob("*.zip")])
+        st.metric("🤖 Trained Agents", model_files)
     else:
-        st.metric("🤖 Trained Models", 0)
+        st.metric("🤖 Trained Agents", 0)
 
 with col3:
     # แสดงสถานะ GPU
@@ -104,7 +104,7 @@ with st.expander("🔧 System Information", expanded=False):
     **Project Structure:**
     - Root Path: `{root_path}`
     - Data Directory: `{data_dir}`
-    - Models Directory: `{models_dir}`
+    - Agents Directory: `{agents_dir}`
     
     **Python Environment:**
     - Python Version: {sys.version.split()[0]}
@@ -116,7 +116,7 @@ with st.expander("🔧 System Information", expanded=False):
     
     directories = [
         ("data", "📊 Data files"),
-        ("models", "🤖 Trained models"),
+        ("agents", "🤖 Trained agents"),
         ("ui/pages", "📄 Application pages"),
         ("notebooks", "📓 Jupyter notebooks")
     ]

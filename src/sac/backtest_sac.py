@@ -19,7 +19,7 @@ print("🧪 Backtest SAC Agent Performance")
 print("=" * 50)
 
 # หา SAC model ล่าสุด
-sac_dir = "models/sac"
+sac_dir = "agents/sac"
 sac_files = [f for f in os.listdir(sac_dir) if f.endswith('_info.pkl')]
 latest_file = sorted(sac_files)[-1]
 model_name = latest_file.replace('_info.pkl', '')
@@ -171,8 +171,8 @@ plt.xticks(rotation=45)
 plt.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('models/sac/sac_backtest_results.png', dpi=300, bbox_inches='tight')
+plt.savefig('agents/sac/sac_backtest_results.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-print(f"✅ กราฟบันทึกแล้วที่: models/sac/sac_backtest_results.png")
+print(f"✅ กราฟบันทึกแล้วที่: agents/sac/sac_backtest_results.png")
 print("=" * 50) 

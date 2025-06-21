@@ -103,7 +103,7 @@ def train_improved_sac_agent(train_env, grade='A'):
     eval_freq = config.get('eval_freq', 10000)
     eval_callback = EvalCallback(
         vec_env, 
-        best_model_save_path=f'./models/sac/best_model_grade_{grade}/',
+        best_model_save_path=f'./agents/sac/best_model_grade_{grade}/',
         log_path=f'./logs/sac_eval_grade_{grade}/',
         eval_freq=eval_freq,
         deterministic=True,
@@ -139,10 +139,10 @@ def save_improved_sac_agent(trained_model, config, training_time, train_df, test
     model_name = f"enhanced_sac_grade_{config['grade']}_{timestamp}_{random_suffix}"
     
     # สร้าง directory ถ้ายังไม่มี
-    os.makedirs("models/sac", exist_ok=True)
+    os.makedirs("agents/sac", exist_ok=True)
     
     # บันทึก trained model
-    model_zip_path = os.path.join("models", "sac", f"{model_name}.zip")
+    model_zip_path = os.path.join("agents", "sac", f"{model_name}.zip")
     trained_model.save(model_zip_path)
     print(f"✅ บันทึก model: {model_zip_path}")
     
@@ -180,7 +180,7 @@ def save_improved_sac_agent(trained_model, config, training_time, train_df, test
         ]
     }
     
-    agent_info_path = os.path.join("models", "sac", f"{model_name}_info.pkl")
+    agent_info_path = os.path.join("agents", "sac", f"{model_name}_info.pkl")
     with open(agent_info_path, 'wb') as f:
         pickle.dump(agent_info, f)
     print(f"✅ บันทึกข้อมูล agent: {agent_info_path}")
@@ -190,7 +190,7 @@ def save_improved_sac_agent(trained_model, config, training_time, train_df, test
     print(f"🔤 ชื่อ Model: {model_name}")
     print(f"🏆 Grade: {config['grade']} - {config['description']}")
     print(f"⏱️ ระยะเวลาการฝึก: {training_time}")
-    print(f"📁 โฟลเดอร์: models/sac/")
+    print(f"📁 โฟลเดอร์: agents/sac/")
     print(f"📦 ไฟล์ Model: {model_name}.zip")
     print(f"📄 ไฟล์ข้อมูล: {model_name}_info.pkl")
     
@@ -312,7 +312,7 @@ def main():
         results = test_agent(trained_model, test_env, f"Enhanced SAC Grade {recommended_grade}")
         
         # เปรียบเทียบกับ original (ถ้ามี)
-        original_sac_path = "models/sac/sac_agent_original.zip"  # แก้ไขเป็นชื่อไฟล์จริง
+        original_sac_path = "agents/sac/sac_agent_original.zip"  # แก้ไขเป็นชื่อไฟล์จริง
         compare_with_original(trained_model, original_sac_path, test_env)
         
         print("\n🎉 สำเร็จ! Enhanced SAC Agent ถูกสร้างและบันทึกแล้ว")

@@ -370,7 +370,7 @@ def save_sac_agent(trained_model, train_df, test_df):
     model_name = f"sac_agent_{timestamp}_{random_suffix}"
     
     # บันทึก trained model (.zip)
-    model_zip_path = os.path.join("models", "sac", f"{model_name}.zip")
+    model_zip_path = os.path.join("agents", "sac", f"{model_name}.zip")
     trained_model.save(model_zip_path)
     print(f"✅ บันทึก model: {model_zip_path}")
     
@@ -396,7 +396,7 @@ def save_sac_agent(trained_model, train_df, test_df):
         }
     }
     
-    agent_info_path = os.path.join("models", "sac", f"{model_name}_info.pkl")
+    agent_info_path = os.path.join("agents", "sac", f"{model_name}_info.pkl")
     with open(agent_info_path, 'wb') as f:
         pickle.dump(agent_info, f)
     print(f"✅ บันทึกข้อมูล agent: {agent_info_path}")
@@ -404,7 +404,7 @@ def save_sac_agent(trained_model, train_df, test_df):
     # แสดงสรุป
     print(f"\n📋 สรุปการบันทึก SAC Agent:")
     print(f"🔤 ชื่อ Model: {model_name}")
-    print(f"📁 โฟลเดอร์: models/sac/")
+    print(f"📁 โฟลเดอร์: agents/sac/")
     print(f"📦 ไฟล์ Model: {model_name}.zip")
     print(f"📄 ไฟล์ข้อมูล: {model_name}_info.pkl")
     

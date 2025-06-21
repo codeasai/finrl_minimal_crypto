@@ -38,7 +38,7 @@ Thumbs.db
 
 # Data and Models (ignore entire directories with content)
 data/
-models/
+agents/
 simple_data/
 
 # Backup patterns

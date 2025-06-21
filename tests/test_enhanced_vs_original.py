@@ -19,19 +19,19 @@ def load_models():
     models = {}
     
     # Enhanced SAC Grade A
-    enhanced_model_path = "models/sac/enhanced_sac_grade_A_20250620_012303_XAJI0Y.zip"
+    enhanced_model_path = "agents/sac/enhanced_sac_grade_A_20250620_012303_XAJI0Y.zip"
     if os.path.exists(enhanced_model_path):
         models['Enhanced SAC Grade A'] = SAC.load(enhanced_model_path)
         print(f"✅ โหลด Enhanced SAC Grade A สำเร็จ")
     
     # Best Model from evaluation
-    best_model_path = "models/sac/best_model_grade_A/best_model.zip"
+    best_model_path = "agents/sac/best_model_grade_A/best_model.zip"
     if os.path.exists(best_model_path):
         models['Best Model Grade A'] = SAC.load(best_model_path)
         print(f"✅ โหลด Best Model Grade A สำเร็จ")
     
     # Original SAC (ถ้ามี)
-    original_model_path = "models/sac/sac_agent_20250619_151128_XXBF8G.zip"
+    original_model_path = "agents/sac/sac_agent_20250619_151128_XXBF8G.zip"
     if os.path.exists(original_model_path):
         models['Original SAC'] = SAC.load(original_model_path)
         print(f"✅ โหลด Original SAC สำเร็จ")
@@ -224,7 +224,7 @@ def plot_comparison(results_list):
     
     # บันทึกกราฟ
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = f"models/sac/enhanced_vs_original_comparison_{timestamp}.png"
+    plot_filename = f"agents/sac/enhanced_vs_original_comparison_{timestamp}.png"
     plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
     print(f"\n📊 บันทึกกราฟเปรียบเทียบ: {plot_filename}")
     

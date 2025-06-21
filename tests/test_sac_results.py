@@ -8,10 +8,10 @@ import pandas as pd
 
 def get_available_agents():
     """หาไฟล์ SAC agents ทั้งหมดที่มีในระบบ"""
-    sac_dir = "models/sac"
+    sac_dir = "agents/sac"
     
     if not os.path.exists(sac_dir):
-        print("❌ ไม่พบ directory models/sac")
+        print("❌ ไม่พบ directory agents/sac")
         return []
     
     agents_info = []
@@ -194,7 +194,7 @@ def display_agent_details(agent):
     print(f"📦 Model: {model_name}.zip ({agent['size_mb']:.1f} MB)")
     
     if has_info:
-        print(f"📄 Info: {agent['file']} ({os.path.getsize(os.path.join('models/sac', agent['file']))} bytes)")
+        print(f"📄 Info: {agent['file']} ({os.path.getsize(os.path.join('agents/sac', agent['file']))} bytes)")
     else:
         print(f"📄 Info: ไม่มีไฟล์ข้อมูลเพิ่มเติม")
     
@@ -217,7 +217,7 @@ def display_agent_details(agent):
     
     print(f"\n✅ SAC Agent พร้อมใช้งาน!")
     print("🚀 สามารถโหลดและใช้งานได้ด้วย:")
-    print(f"   model = SAC.load('models/sac/{model_name}.zip')")
+    print(f"   model = SAC.load('agents/sac/{model_name}.zip')")
     
     if not has_info:
         print("\n💡 หมายเหตุ:")
@@ -270,4 +270,4 @@ if __name__ == "__main__":
         print("\n\n👋 ออกจากโปรแกรม")
     except Exception as e:
         print(f"\n❌ เกิดข้อผิดพลาด: {e}")
-        print("🔧 กรุณาตรวจสอบไฟล์ในโฟลเดอร์ models/sac") 
+        print("🔧 กรุณาตรวจสอบไฟล์ในโฟลเดอร์ agents/sac") 

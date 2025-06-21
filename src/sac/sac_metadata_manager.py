@@ -246,7 +246,7 @@ class SAC_AgentMetadata:
 class SAC_MetadataManager:
     """Manager class สำหรับจัดการ metadata ของ SAC agents ทั้งหมด"""
     
-    def __init__(self, metadata_dir: str = "models/sac/metadata"):
+    def __init__(self, metadata_dir: str = "agents/sac/metadata"):
         self.metadata_dir = metadata_dir
         os.makedirs(metadata_dir, exist_ok=True)
         

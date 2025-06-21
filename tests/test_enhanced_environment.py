@@ -128,7 +128,7 @@ def train_sac_on_environment(env, env_name, grade='C', timesteps=200000):
     
     eval_callback = EvalCallback(
         vec_env,
-        best_model_save_path=f'./models/sac/best_{env_name}_env/',
+        best_model_save_path=f'./agents/sac/best_{env_name}_env/',
         log_path=f'./logs/sac_{env_name}_env/',
         eval_freq=eval_freq,
         deterministic=True,
@@ -150,9 +150,9 @@ def train_sac_on_environment(env, env_name, grade='C', timesteps=200000):
     # Save trained model
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_name = f"sac_{env_name}_env_grade_{grade}_{timestamp}"
-    model_path = f"models/sac/{model_name}.zip"
+    model_path = f"agents/sac/{model_name}.zip"
     
-    os.makedirs("models/sac", exist_ok=True)
+    os.makedirs("agents/sac", exist_ok=True)
     model.save(model_path)
     
     print(f"✅ Training completed in {training_time}")
@@ -325,7 +325,7 @@ def plot_environment_comparison(original_stats, enhanced_stats):
     
     # Save plot
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = f"models/sac/environment_comparison_{timestamp}.png"
+    plot_filename = f"agents/sac/environment_comparison_{timestamp}.png"
     plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
     print(f"\n📊 Comparison plot saved: {plot_filename}")
     
@@ -397,7 +397,7 @@ def main():
             plot_environment_comparison(original_stats, enhanced_stats)
         
         print(f"\n🎉 Environment comparison completed!")
-        print(f"📁 Models saved in models/sac/")
+        print(f"📁 Models saved in agents/sac/")
         print("=" * 80)
         
     except Exception as e:

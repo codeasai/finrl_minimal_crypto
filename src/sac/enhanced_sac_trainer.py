@@ -175,7 +175,7 @@ class Enhanced_SAC_Trainer:
         model = SAC(env=env, **model_config)
         
         # Set paths
-        models_dir = "models/sac"
+        models_dir = "agents/sac"
         os.makedirs(models_dir, exist_ok=True)
         
         metadata.model_path = os.path.join(models_dir, f"{metadata.agent_id}.zip")

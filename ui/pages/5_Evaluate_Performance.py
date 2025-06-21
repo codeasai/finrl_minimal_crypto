@@ -69,7 +69,7 @@ def evaluate_agent_ui():
     
     # ตรวจสอบไฟล์ที่เกี่ยวข้อง
     files_to_check = [
-        ("models", "โมเดลที่เทรนแล้ว"),
+        ("agents", "โมเดลที่เทรนแล้ว"),
         ("data", "ข้อมูลสำหรับการประเมิน"),
         ("notebooks", "Jupyter notebooks")
     ]
@@ -80,7 +80,7 @@ def evaluate_agent_ui():
             files = list(folder_path.glob("*"))
             if files:
                 st.success(f"✅ {description}: พบ {len(files)} ไฟล์")
-                if folder == "models":
+                if folder == "agents":
                     model_files = [f for f in files if f.suffix == '.zip']
                     for model_file in model_files[:5]:  # แสดงแค่ 5 ไฟล์แรก
                         st.write(f"   📁 {model_file.name}")

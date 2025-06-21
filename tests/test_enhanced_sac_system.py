@@ -255,7 +255,7 @@ def run_comprehensive_test():
             print(f"  - {agent.agent_id} (Grade {agent.grade})")
     
     print(f"\n🎯 Enhanced SAC System is ready for use!")
-    print(f"📂 Metadata stored in: models/sac/metadata/")
+    print(f"📂 Metadata stored in: agents/sac/metadata/")
     print(f"🔧 To use the system:")
     print(f"   1. Import: from enhanced_sac_trainer import create_enhanced_sac_trainer")
     print(f"   2. Create trainer: trainer = create_enhanced_sac_trainer()")

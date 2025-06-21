@@ -61,17 +61,17 @@ def test_agent_ui():
     st.subheader("📋 ข้อมูลโมเดลที่มีอยู่")
     
     # ตรวจสอบโมเดลที่มีอยู่
-    models_dir = root_path / "models"
-    if models_dir.exists():
-        model_files = list(models_dir.glob("*.zip"))
+    agents_dir = root_path / "agents"
+    if agents_dir.exists():
+        model_files = list(agents_dir.glob("*.zip"))
         if model_files:
             st.success(f"พบโมเดล {len(model_files)} ไฟล์:")
-            for model_file in model_files:
-                st.write(f"📁 {model_file.name}")
+            for file in model_files:
+                st.write(f"📦 {file.name}")
         else:
-            st.warning("ไม่พบไฟล์โมเดล กรุณาเทรน agent ก่อน")
+            st.warning("ไม่พบไฟล์โมเดล")
     else:
-        st.warning("ไม่พบโฟลเดอร์ models")
+        st.warning("ไม่พบโฟลเดอร์ agents")
 
 # เรียกใช้ UI
 test_agent_ui() 

@@ -33,18 +33,17 @@ def manage_agents_ui():
     """UI สำหรับการจัดการ agents"""
     st.header("⚙️ Manage Agents")
     
-    # ตรวจสอบโฟลเดอร์ models
-    models_dir = root_path / "models"
-    
-    if not models_dir.exists():
-        st.warning("⚠️ ไม่พบโฟลเดอร์ models")
-        st.info("สร้างโฟลเดอร์ models ใหม่...")
-        models_dir.mkdir(exist_ok=True)
-        st.success("✅ สร้างโฟลเดอร์ models เรียบร้อย")
-        return
+    # ตรวจสอบโฟลเดอร์ agents
+agents_dir = root_path / "agents"
+
+if not agents_dir.exists():
+    st.warning("⚠️ ไม่พบโฟลเดอร์ agents")
+    st.info("สร้างโฟลเดอร์ agents ใหม่...")
+    agents_dir.mkdir(exist_ok=True)
+    st.success("✅ สร้างโฟลเดอร์ agents เรียบร้อย")
     
     # ค้นหาไฟล์โมเดล
-    model_files = list(models_dir.glob("*.zip"))
+    model_files = list(agents_dir.glob("*.zip"))
     
     if not model_files:
         st.info("""

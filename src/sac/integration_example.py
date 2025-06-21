@@ -332,7 +332,7 @@ def main():
         demo_integration_with_streamlit()
         
         print(f"\n✅ Demo completed successfully!")
-        print(f"📂 Check models/sac/metadata/ for saved agent metadata")
+        print(f"📂 Check agents/sac/metadata/ for saved agent metadata")
         print(f"📊 Check enhanced_sac_demo_results.csv for exported data")
         
         # Cleanup demo export file

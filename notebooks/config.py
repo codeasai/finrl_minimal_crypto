@@ -37,7 +37,7 @@ DATA_DIR = "../data"  # Relative to notebooks directory
 DATA_PREPARE_DIR = "../data/data_prepare"
 
 # Model directory (same as root config.py)
-MODEL_DIR = "../models"  # Relative to notebooks directory
+MODEL_DIR = "../agents"  # Relative to notebooks directory
 
 # ==================== TECHNICAL INDICATORS ====================
 
