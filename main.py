@@ -1,571 +1,732 @@
-# main.py
+# main_refactored.py - Unified Entry Point for Native Python SAC Implementation
+"""
+Unified Main Entry Point สำหรับ Crypto SAC Agent
+
+คุณสมบัติหลัก:
+1. Multiple operation modes (interactive, train, test, compare, legacy)
+2. Command-line argument parsing
+3. Integration กับ unified SAC agent และ interactive CLI
+4. Grade system support
+5. Legacy FinRL compatibility
+6. Performance analysis และ plotting
+7. Comprehensive error handling และ logging
+
+Usage Examples:
+    python main.py                              # Interactive mode
+    python main.py --mode train --grade B       # Train Grade B agent
+    python main.py --mode test --agent-id ABC123  # Test specific agent
+    python main.py --mode legacy                # Legacy FinRL mode
+"""
+
 import sys
 import warnings
 warnings.filterwarnings('ignore')
 
+import argparse
+import os
+from datetime import datetime
+from typing import Optional, Dict, Any
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime
-import os
-import yfinance as yf
-import torch
 
-# FinRL imports
-from finrl.meta.data_processors.processor_yahoofinance import YahooFinanceProcessor
-from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
-from finrl.agents.stablebaselines3.models import DRLAgent
+# Import unified components
+from crypto_agent import CryptoSACAgent, create_crypto_sac_agent, load_crypto_sac_agent
+from interactive_cli import InteractiveCLI, AgentManager, DataManager
+from config.config import *
 
-# Import config
-from config import *
+# Legacy imports (optional)
+try:
+    import yfinance as yf
+    import torch
+    from finrl.meta.data_processors.processor_yahoofinance import YahooFinanceProcessor
+    from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
+    from finrl.agents.stablebaselines3.models import DRLAgent
+    LEGACY_AVAILABLE = True
+except ImportError:
+    LEGACY_AVAILABLE = False
+    print("⚠️ Legacy FinRL components not available. Legacy mode disabled.")
 
-# Use standardized directories from config
-# DATA_DIR, DATA_PREPARE_DIR, and MODEL_DIR are already defined in config.py
+def setup_argument_parser():
+    """Setup command-line argument parser"""
+    parser = argparse.ArgumentParser(
+        description='Crypto SAC Agent - Unified Implementation',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                                    # Interactive mode
+  %(prog)s --mode train --grade B             # Train Grade B agent
+  %(prog)s --mode test --agent-id ABC123      # Test specific agent
+  %(prog)s --mode compare                     # Compare all agents
+  %(prog)s --mode legacy                      # Legacy FinRL mode
+  %(prog)s --mode train --grade A --timesteps 500000  # Custom training
 
-# ตรวจสอบและตั้งค่า GPU
-def setup_device():
-    """
-    ตรวจสอบและตั้งค่าการใช้งาน GPU/CPU
-    """
-    print("\n🔍 ตรวจสอบการใช้งาน GPU/CPU")
-    print("-" * 50)
-    
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print(f"✅ พบ GPU: {torch.cuda.get_device_name(0)}")
-        print(f"📊 จำนวน GPU: {torch.cuda.device_count()}")
-        print(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
-    else:
-        device = torch.device("cpu")
-        print("ℹ️ ไม่พบ GPU ใช้ CPU แทน")
-    
-    # ตั้งค่า environment variable สำหรับ Stable Baselines3
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0" if torch.cuda.is_available() else "-1"
-    
-    return device
-
-def download_crypto_data(force_download=False):
-    """
-    ดาวน์โหลดข้อมูล crypto โดยใช้ yfinance โดยตรง
-    มีตัวเลือกให้บังคับดาวน์โหลดใหม่ได้ผ่าน force_download
-    """
-    data_file = os.path.join(DATA_DIR, "crypto_data.csv")
-    
-    # ถ้ามีไฟล์ข้อมูลอยู่แล้วและไม่ได้บังคับดาวน์โหลดใหม่
-    if os.path.exists(data_file) and not force_download:
-        print("📂 Loading existing data...")
-        try:
-            df = pd.read_csv(data_file)
-            # แปลงชื่อคอลัมน์เป็นตัวเล็ก
-            df = df.rename(columns={
-                'Open': 'open',
-                'High': 'high',
-                'Low': 'low',
-                'Close': 'close',
-                'Volume': 'volume'
-            })
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            print(f"✅ Loaded {len(df)} rows of data")
-            print(f"📅 Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-            print(f"📈 Symbols: {df['tic'].unique()}")
-            return df
-        except Exception as e:
-            print(f"⚠️ Error loading existing data: {str(e)}")
-            print("🔄 Proceeding with new download...")
-    
-    print("📊 Downloading crypto data...")
-    print(f"📅 Date range: {START_DATE} to {END_DATE}")
-    print(f"📈 Symbols: {CRYPTO_SYMBOLS}")
-    
-    # ดาวน์โหลดข้อมูลโดยตรงจาก yfinance
-    df_list = []
-    for symbol in CRYPTO_SYMBOLS:
-        print(f"📥 Downloading {symbol}...")
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(
-                start=START_DATE,
-                end=END_DATE,
-                interval='1D',
-                auto_adjust=True
-            )
-            if len(df) == 0:
-                print(f"⚠️ Warning: No data found for {symbol}")
-                continue
-                
-            # เพิ่มคอลัมน์ที่จำเป็น
-            df['tic'] = symbol
-            df['timestamp'] = df.index
-            
-            # แปลงชื่อคอลัมน์เป็นตัวเล็ก
-            df = df.rename(columns={
-                'Open': 'open',
-                'High': 'high',
-                'Low': 'low',
-                'Close': 'close',
-                'Volume': 'volume'
-            })
-            
-            # ตรวจสอบว่ามีคอลัมน์ที่จำเป็นครบหรือไม่
-            required_columns = ['open', 'high', 'low', 'close', 'volume', 'tic', 'timestamp']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                print(f"⚠️ Warning: Missing columns for {symbol}: {', '.join(missing_columns)}")
-                continue
-            
-            df_list.append(df)
-            print(f"✅ Downloaded {len(df)} rows for {symbol}")
-        except Exception as e:
-            print(f"❌ Error downloading {symbol}: {str(e)}")
-            continue
-    
-    if not df_list:
-        raise ValueError(f"ไม่พบข้อมูลในช่วงวันที่ {START_DATE} ถึง {END_DATE}")
-    
-    # รวมข้อมูล
-    df = pd.concat(df_list, axis=0)
-    df = df.reset_index(drop=True)
-    
-    # ตรวจสอบและแปลงชื่อคอลัมน์อีกครั้ง
-    df = df.rename(columns={
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Close': 'close',
-        'Volume': 'volume'
-    })
-    
-    # บันทึกข้อมูล
-    try:
-        # สร้างโฟลเดอร์ถ้ายังไม่มี (directory already created in config.py)
-        # บันทึกข้อมูล
-        df.to_csv(data_file, index=False)
-        print(f"💾 Saved data to {data_file}")
-        print(f"📊 File size: {os.path.getsize(data_file) / 1024:.1f} KB")
-        
-        # ตรวจสอบว่าบันทึกสำเร็จ
-        if os.path.exists(data_file):
-            print("✅ Data saved successfully")
-        else:
-            print("❌ Error: File was not saved properly")
-            
-    except Exception as e:
-        print(f"❌ Error saving data: {str(e)}")
-        print("⚠️ Continuing without saving...")
-    
-    print(f"✅ Downloaded {len(df)} rows of data")
-    print(f"📅 Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-    print(f"📈 Symbols: {df['tic'].unique()}")
-    
-    return df
-
-def add_technical_indicators(df):
-    """
-    เพิ่ม technical indicators และ normalize ข้อมูล
-    """
-    print("📈 Adding technical indicators...")
-    
-    # สร้างสำเนาข้อมูล
-    df = df.copy()
-    
-    # ตรวจสอบและแปลงชื่อคอลัมน์เป็นตัวเล็ก
-    column_mapping = {
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Close': 'close',
-        'Volume': 'volume'
-    }
-    df = df.rename(columns=column_mapping)
-    
-    # ตรวจสอบว่ามีคอลัมน์ที่จำเป็นครบหรือไม่
-    required_columns = ['open', 'high', 'low', 'close', 'volume', 'tic', 'timestamp']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"ไม่พบคอลัมน์ที่จำเป็น: {', '.join(missing_columns)}")
-    
-    # 1. Moving Averages
-    df['sma_20'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).mean())
-    df['ema_20'] = df.groupby('tic')['close'].transform(lambda x: x.ewm(span=20, adjust=False).mean())
-    
-    # 2. RSI (Relative Strength Index)
-    def calculate_rsi(group):
-        delta = group['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
-    
-    # คำนวณ RSI แยกตาม tic
-    rsi_values = []
-    for tic in df['tic'].unique():
-        tic_data = df[df['tic'] == tic].copy()
-        rsi = calculate_rsi(tic_data)
-        rsi_values.extend(rsi.values)
-    df['rsi_14'] = rsi_values
-    
-    # 3. MACD
-    def calculate_macd(group):
-        exp1 = group['close'].ewm(span=12, adjust=False).mean()
-        exp2 = group['close'].ewm(span=26, adjust=False).mean()
-        macd = exp1 - exp2
-        signal = macd.ewm(span=9, adjust=False).mean()
-        hist = macd - signal
-        return pd.DataFrame({
-            'macd': macd,
-            'macd_signal': signal,
-            'macd_hist': hist
-        })
-    
-    # คำนวณ MACD แยกตาม tic
-    macd_dfs = []
-    for tic in df['tic'].unique():
-        tic_data = df[df['tic'] == tic].copy()
-        macd_result = calculate_macd(tic_data)
-        macd_dfs.append(macd_result)
-    
-    macd_df = pd.concat(macd_dfs)
-    df['macd'] = macd_df['macd'].values
-    df['macd_signal'] = macd_df['macd_signal'].values
-    df['macd_hist'] = macd_df['macd_hist'].values
-    
-    # 4. Bollinger Bands
-    df['bb_middle'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).mean())
-    df['bb_std'] = df.groupby('tic')['close'].transform(lambda x: x.rolling(window=20).std())
-    df['bb_upper'] = df['bb_middle'] + (df['bb_std'] * 2)
-    df['bb_lower'] = df['bb_middle'] - (df['bb_std'] * 2)
-    
-    # 5. Volume Indicators
-    df['volume_sma_20'] = df.groupby('tic')['volume'].transform(lambda x: x.rolling(window=20).mean())
-    df['volume_ratio'] = df['volume'] / df['volume_sma_20']
-    
-    # Normalize ข้อมูลราคาและ volume
-    price_cols = ['open', 'high', 'low', 'close']
-    for col in price_cols:
-        df[col] = df.groupby('tic')[col].transform(lambda x: (x - x.mean()) / x.std())
-    
-    df['volume'] = df.groupby('tic')['volume'].transform(lambda x: (x - x.mean()) / x.std())
-    
-    # Normalize technical indicators
-    indicator_cols = ['sma_20', 'ema_20', 'rsi_14', 'macd', 'macd_signal', 'macd_hist',
-                     'bb_middle', 'bb_std', 'bb_upper', 'bb_lower', 'volume_sma_20', 'volume_ratio']
-    
-    for col in indicator_cols:
-        if col in df.columns:
-            df[col] = df.groupby('tic')[col].transform(lambda x: (x - x.mean()) / x.std())
-    
-    # แทนที่ค่า inf และ nan ด้วย 0
-    df = df.replace([np.inf, -np.inf], np.nan)
-    df = df.fillna(0)
-    
-    print(f"✅ Added indicators: {indicator_cols}")
-    print(f"✅ Normalized price, volume and indicators")
-    print(f"Final columns: {len(df.columns)} columns")
-    
-    return df
-
-def create_environment(df):
-    """
-    สร้าง trading environment แบบปลอดภัยจาก numpy AttributeError
-    """
-    print("🏛️ Creating trading environment...")
-    
-    # ตรวจสอบและแปลงชื่อคอลัมน์เป็นตัวเล็ก
-    column_mapping = {
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Close': 'close',
-        'Volume': 'volume'
-    }
-    df = df.rename(columns=column_mapping)
-    
-    # แบ่งข้อมูลเป็น train/test โดยใช้สัดส่วน 80/20
-    train_size = int(len(df) * 0.8)
-    train_df = df.iloc[:train_size].copy().reset_index(drop=True)
-    test_df = df.iloc[train_size:].copy().reset_index(drop=True)
-    
-    # ฟังก์ชันเตรียมข้อมูลสำหรับ FinRL แบบปลอดภัย
-    def prepare_finrl_data(data):
-        """แปลงข้อมูลให้เข้ากับ FinRL โดยหลีกเลี่ยง numpy scalar AttributeError"""
-        data = data.copy()
-        
-        # แปลง timestamp และ date
-        data['timestamp'] = pd.to_datetime(data['timestamp'])
-        data['date'] = data['timestamp'].dt.strftime('%Y-%m-%d')  # ใช้ string แทน date object
-        
-        # เรียงข้อมูลตามวันที่และ symbol
-        data = data.sort_values(['date', 'tic']).reset_index(drop=True)
-        
-        # แปลงข้อมูลตัวเลขให้เป็น float64 และตรวจสอบ NaN
-        numeric_columns = ['open', 'high', 'low', 'close', 'volume'] + [
-            'sma_20', 'ema_20', 'rsi_14', 
-            'macd', 'macd_signal', 'macd_hist',
-            'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
-            'volume_sma_20', 'volume_ratio'
-        ]
-        
-        for col in numeric_columns:
-            if col in data.columns:
-                # แปลงเป็น pandas Series ชัดเจน และแทนที่ NaN ด้วย 0
-                data[col] = pd.Series(data[col]).astype('float64').fillna(0.0)
-        
-        # ตรวจสอบและแก้ไข inf values
-        data = data.replace([np.inf, -np.inf], 0.0)
-        
-        # ตรวจสอบให้แน่ใจว่าไม่มี NaN
-        data = data.fillna(0.0)
-        
-        return data
-    
-    # เตรียมข้อมูล train และ test
-    train_df = prepare_finrl_data(train_df)
-    test_df = prepare_finrl_data(test_df)
-    
-    print(f"📚 Training data: {len(train_df)} rows ({train_df['timestamp'].min()} to {train_df['timestamp'].max()})")
-    print(f"📝 Testing data: {len(test_df)} rows ({test_df['timestamp'].min()} to {test_df['timestamp'].max()})")
-    
-    # ใช้ indicators จาก config.py
-    indicators = INDICATORS
-    
-    # สร้าง environment สำหรับ training
-    env_kwargs = {
-        "hmax": HMAX,
-        "initial_amount": INITIAL_AMOUNT,
-        "num_stock_shares": [0] * len(CRYPTO_SYMBOLS),
-        "buy_cost_pct": [TRANSACTION_COST_PCT] * len(CRYPTO_SYMBOLS),
-        "sell_cost_pct": [TRANSACTION_COST_PCT] * len(CRYPTO_SYMBOLS),
-        "state_space": 1 + 2 * len(CRYPTO_SYMBOLS) + len(CRYPTO_SYMBOLS) * len(indicators),
-        "stock_dim": len(CRYPTO_SYMBOLS),
-        "tech_indicator_list": indicators,
-        "action_space": len(CRYPTO_SYMBOLS),
-        "reward_scaling": 1e-3,  # ปรับ reward scaling
-        "print_verbosity": 1     # เพิ่มการแสดงผลข้อมูล
-    }
-    
-    train_env = StockTradingEnv(df=train_df, **env_kwargs)
-    test_env = StockTradingEnv(df=test_df, **env_kwargs)
-    
-    print("✅ Environment created successfully")
-    print(f"📊 Using indicators: {indicators}")
-    
-    return train_env, test_env, train_df, test_df
-
-def train_agent(train_env):
-    """
-    เทรน DRL Agent ด้วยการปรับแต่ง hyperparameters
-    """
-    print("🤖 Training DRL Agent...")
-    
-    # ตรวจสอบและตั้งค่า GPU/CPU
-    device = setup_device()
-    
-    # สร้าง agent
-    agent = DRLAgent(env=train_env)
-    
-    # ปรับแต่ง hyperparameters ให้เหมาะสมกับข้อมูล crypto
-    PPO_PARAMS = {
-        'learning_rate': 1e-4,      # ลด learning rate ลง
-        'n_steps': 1024,           # ลดจำนวน steps ต่อ batch
-        'batch_size': 128,         # เพิ่ม batch size
-        'n_epochs': 4,             # ลดจำนวน epochs
-        'gamma': 0.99,             # discount factor
-        'gae_lambda': 0.95,        # GAE parameter
-        'clip_range': 0.2,         # PPO clip range
-        'max_grad_norm': 0.5,      # gradient clipping
-        'ent_coef': 0.01,          # entropy coefficient
-        'vf_coef': 0.5,            # value function coefficient
-        'target_kl': 0.02,         # target KL divergence
-        'device': device           # ใช้ GPU หรือ CPU
-    }
-    
-    # เลือก model (PPO ที่ปรับแต่งแล้ว)
-    model_name = "ppo"
-    print(f"🧠 Using {model_name.upper()} model")
-    print(f"Model parameters: {PPO_PARAMS}")
-    
-    try:
-        model = agent.get_model(model_name, model_kwargs=PPO_PARAMS)
-        
-        # เทรน model
-        print("⏳ Training started... (this may take a few minutes)")
-        trained_model = agent.train_model(
-            model=model,
-            tb_log_name=f"minimal_crypto_{model_name}",
-            total_timesteps=100000  # เพิ่มจำนวน timesteps
-        )
-        
-        # บันทึก model (directory already created in config.py)
-        model_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}")
-        trained_model.save(model_path)
-        print(f"💾 Model saved to {model_path}")
-        
-        return trained_model
-        
-    except Exception as e:
-        print(f"❌ Error during model training: {str(e)}")
-        print("💡 Trying with simplified parameters...")
-        
-        # ลองใช้ parameters ที่เรียบง่ายขึ้น
-        SIMPLE_PARAMS = {
-            'learning_rate': 1e-4,
-            'batch_size': 128,
-            'n_steps': 1024,
-            'gamma': 0.99,
-            'gae_lambda': 0.95,
-            'device': device  # ใช้ GPU หรือ CPU
-        }
-        
-        print(f"New parameters: {SIMPLE_PARAMS}")
-        model = agent.get_model(model_name, model_kwargs=SIMPLE_PARAMS)
-        
-        trained_model = agent.train_model(
-            model=model,
-            tb_log_name=f"minimal_crypto_{model_name}_simple",
-            total_timesteps=100000
-        )
-        
-        # Directory already created in config.py
-        model_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}_simple")
-        trained_model.save(model_path)
-        print(f"💾 Model saved to {model_path}")
-        
-        return trained_model
-
-def test_agent(trained_model, test_env):
-    """
-    ทดสอบ agent ที่เทรนแล้ว
-    """
-    print("📊 Testing trained agent...")
-    
-    # รัน backtest
-    df_account_value, df_actions = DRLAgent.DRL_prediction(
-        model=trained_model,
-        environment=test_env
+Modes:
+  interactive: Interactive CLI menu
+  train: Train new agent
+  test: Test existing agent
+  compare: Compare all agents
+  info: System information
+  legacy: Legacy FinRL implementation
+  
+Grades:
+  N: Novice (50K timesteps)      D: Developing (100K timesteps)
+  C: Competent (200K timesteps)  B: Proficient (500K timesteps)  
+  A: Advanced (1M timesteps)     S: Supreme (2M timesteps)
+        """
     )
     
-    print("✅ Backtesting completed")
+    # Main operation mode
+    parser.add_argument(
+        '--mode', 
+        choices=['interactive', 'train', 'test', 'compare', 'info', 'legacy'], 
+        default='interactive',
+        help='Operation mode (default: interactive)'
+    )
     
-    return df_account_value, df_actions
+    # Agent configuration
+    parser.add_argument(
+        '--grade', 
+        choices=['N', 'D', 'C', 'B', 'A', 'S'], 
+        default='C',
+        help='Agent grade for training (default: C)'
+    )
+    
+    parser.add_argument(
+        '--algorithm', 
+        choices=['SAC', 'PPO', 'DDPG', 'TD3', 'A2C'], 
+        default='SAC',
+        help='RL algorithm to use (default: SAC)'
+    )
+    
+    parser.add_argument(
+        '--environment', 
+        choices=['basic', 'enhanced'], 
+        default='enhanced',
+        help='Environment type (default: enhanced)'
+    )
+    
+    parser.add_argument(
+        '--agent-id',
+        help='Agent ID for loading/testing (required for test mode)'
+    )
+    
+    # Training parameters
+    parser.add_argument(
+        '--timesteps', 
+        type=int,
+        help='Training timesteps (overrides grade default)'
+    )
+    
+    parser.add_argument(
+        '--episodes', 
+        type=int, 
+        default=10,
+        help='Number of test episodes (default: 10)'
+    )
+    
+    # Data options
+    parser.add_argument(
+        '--force-download', 
+        action='store_true',
+        help='Force download fresh data'
+    )
+    
+    parser.add_argument(
+        '--symbols',
+        nargs='+',
+        help='Crypto symbols to use (default: BTC-USD)'
+    )
+    
+    # Output options
+    parser.add_argument(
+        '--save-path',
+        help='Custom save path for trained agent'
+    )
+    
+    parser.add_argument(
+        '--verbose', '-v',
+        action='count', 
+        default=1,
+        help='Increase verbosity (-v, -vv, -vvv)'
+    )
+    
+    parser.add_argument(
+        '--quiet', '-q',
+        action='store_true',
+        help='Suppress output'
+    )
+    
+    # Legacy options
+    parser.add_argument(
+        '--legacy-model',
+        choices=['ppo', 'sac', 'ddpg'],
+        default='ppo',
+        help='Legacy model type (default: ppo)'
+    )
+    
+    parser.add_argument(
+        '--plot-results',
+        action='store_true',
+        help='Generate performance plots'
+    )
+    
+    return parser
 
-def analyze_results(df_account_value, test_df):
-    """
-    วิเคราะห์ผลลัพธ์
-    """
-    print("📈 Analyzing results...")
-    
-    # คำนวณ returns
-    initial_value = INITIAL_AMOUNT
-    final_value = df_account_value['account_value'].iloc[-1]
-    total_return = (final_value - initial_value) / initial_value * 100
-    
-    # คำนวณ buy and hold return (BTC)
-    btc_data = test_df[test_df['tic'] == 'BTC-USD'].copy()
-    btc_initial = btc_data['close'].iloc[0]
-    btc_final = btc_data['close'].iloc[-1] 
-    btc_return = (btc_final - btc_initial) / btc_initial * 100
-    
-    print(f"\n📊 RESULTS SUMMARY:")
-    print(f"{'='*50}")
-    print(f"Initial Portfolio Value: ${initial_value:,.2f}")
-    print(f"Final Portfolio Value: ${final_value:,.2f}")
-    print(f"Agent Total Return: {total_return:.2f}%")
-    print(f"BTC Buy & Hold Return: {btc_return:.2f}%")
-    print(f"Alpha (Agent - B&H): {total_return - btc_return:.2f}%")
-    print(f"{'='*50}")
-    
-    # Plot results
-    plot_results(df_account_value, test_df)
-    
-    return {
-        'agent_return': total_return,
-        'btc_return': btc_return,
-        'alpha': total_return - btc_return,
-        'final_value': final_value
-    }
+def print_banner():
+    """Print application banner"""
+    print("🚀 Crypto SAC Agent - Unified Implementation")
+    print("=" * 60)
+    print("📊 Deep Reinforcement Learning for Cryptocurrency Trading")
+    print("🎯 Grade System: N, D, C, B, A, S")
+    print("🤖 Algorithms: SAC, PPO, DDPG, TD3, A2C")
+    print("🔄 Legacy FinRL Support Available" if LEGACY_AVAILABLE else "⚠️ Legacy FinRL Not Available")
+    print("=" * 60)
 
-def plot_results(df_account_value, test_df):
-    """
-    สร้างกราฟแสดงผลลัพธ์
-    """
-    print("📊 Creating performance plots...")
+def legacy_mode(model_type='ppo', symbols=None, force_download=False, plot_results=False, verbose=1):
+    """Legacy FinRL mode for backward compatibility"""
+    if verbose >= 1:
+        print(f"\n🔄 Starting Legacy Mode - {model_type.upper()}")
     
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-    
-    # Plot 1: Portfolio value over time
-    dates = pd.to_datetime(test_df['timestamp'].unique())
-    portfolio_values = df_account_value['account_value'].values
-    
-    ax1.plot(dates, portfolio_values, label='Agent Portfolio', linewidth=2, color='blue')
-    ax1.axhline(y=INITIAL_AMOUNT, color='red', linestyle='--', label='Initial Value')
-    ax1.set_title('Portfolio Value Over Time', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Portfolio Value ($)')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    # Plot 2: BTC Price comparison
-    btc_data = test_df[test_df['tic'] == 'BTC-USD'].copy()
-    btc_prices = btc_data.groupby('timestamp')['Close'].first().values
-    btc_normalized = btc_prices / btc_prices[0] * INITIAL_AMOUNT
-    
-    portfolio_normalized = portfolio_values
-    
-    ax2.plot(dates, portfolio_normalized, label='Agent Portfolio', linewidth=2, color='blue')
-    ax2.plot(dates, btc_normalized, label='BTC Buy & Hold', linewidth=2, color='orange')
-    ax2.set_title('Agent vs Buy & Hold Comparison', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('Normalized Value ($)')
-    ax2.set_xlabel('Date')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(MODEL_DIR, 'performance_analysis.png'), dpi=300, bbox_inches='tight')
-    plt.show()
-    
-    print("✅ Performance plots saved and displayed")
-
-def main():
-    """
-    Main function - รัน minimal crypto agent
-    """
-    print("🚀 Starting Minimal Crypto Agent with FinRL")
-    print("="*60)
+    if not LEGACY_AVAILABLE:
+        if verbose >= 1:
+            print("❌ Legacy FinRL components not available")
+            print("💡 Please install FinRL: pip install finrl")
+        return False
     
     try:
-        # ตรวจสอบและตั้งค่า GPU/CPU
+        # Setup device
         device = setup_device()
         
-        # Step 1: Download data (ใส่ force_download=True ถ้าต้องการดาวน์โหลดใหม่)
-        df = download_crypto_data(force_download=False)
+        # Download data using legacy method
+        df = download_crypto_data_legacy(
+            force_download=force_download,
+            symbols=symbols,
+            verbose=verbose
+        )
         
-        # Step 2: Add technical indicators  
-        df = add_technical_indicators(df)
+        if df is None:
+            if verbose >= 1:
+                print("❌ Failed to download data")
+            return False
         
-        # Step 3: Create environments
-        train_env, test_env, train_df, test_df = create_environment(df)
+        # Add technical indicators (simplified)
+        if verbose >= 1:
+            print("📈 Adding technical indicators...")
         
-        # Step 4: Train agent
-        trained_model = train_agent(train_env)
+        # Basic indicators
+        df = df.sort_values(['tic', 'timestamp']).reset_index(drop=True)
+        for symbol in df['tic'].unique():
+            mask = df['tic'] == symbol
+            df.loc[mask, 'sma_20'] = df.loc[mask, 'close'].rolling(20).mean()
+            df.loc[mask, 'ema_20'] = df.loc[mask, 'close'].ewm(span=20).mean()
         
-        # Step 5: Test agent
-        df_account_value, df_actions = test_agent(trained_model, test_env)
+        # Fill NaN values
+        df = df.fillna(method='bfill').fillna(method='ffill')
         
-        # Step 6: Analyze results
-        results = analyze_results(df_account_value, test_df)
+        # Create FinRL environment
+        if verbose >= 1:
+            print("🏗️ Creating FinRL environment...")
         
-        print("\n🎉 Minimal Crypto Agent completed successfully!")
-        print(f"🏆 Your agent achieved {results['agent_return']:.2f}% return")
+        # Split data
+        split_date = pd.to_datetime(START_DATE) + pd.Timedelta(days=int((pd.to_datetime(END_DATE) - pd.to_datetime(START_DATE)).days * 0.8))
+        train_df = df[df['timestamp'] < split_date].reset_index(drop=True)
+        test_df = df[df['timestamp'] >= split_date].reset_index(drop=True)
         
-        if results['alpha'] > 0:
-            print(f"🎯 Great! Agent outperformed Buy & Hold by {results['alpha']:.2f}%")
-        else:
-            print(f"📈 Agent underperformed Buy & Hold by {abs(results['alpha']):.2f}%")
-            print("💡 Try adjusting parameters or training longer!")
-            
+        if verbose >= 1:
+            print(f"📊 Train data: {len(train_df)} rows")
+            print(f"📊 Test data: {len(test_df)} rows")
+        
+        # Prepare data for FinRL
+        stock_dimension = len(df['tic'].unique())
+        state_space = 1 + 2 * stock_dimension + len(['sma_20', 'ema_20']) * stock_dimension
+        
+        env_kwargs = {
+            "hmax": HMAX,
+            "initial_amount": INITIAL_AMOUNT,
+            "transaction_cost_pct": TRANSACTION_COST_PCT,
+            "state_space": state_space,
+            "stock_dim": stock_dimension,
+            "tech_indicator_list": ['sma_20', 'ema_20'],
+            "action_space": stock_dimension,
+            "reward_scaling": 1e-4
+        }
+        
+        # Create environments
+        train_env = StockTradingEnv(df=train_df, **env_kwargs)
+        test_env = StockTradingEnv(df=test_df, **env_kwargs)
+        
+        # Train model
+        if verbose >= 1:
+            print(f"🧠 Training {model_type.upper()} model...")
+        
+        agent = DRLAgent(env=train_env)
+        
+        if model_type.lower() == 'ppo':
+            model_kwargs = {
+                'learning_rate': 1e-4,
+                'batch_size': 128,
+                'n_steps': 1024,
+                'gamma': 0.99,
+                'device': device
+            }
+        elif model_type.lower() == 'sac':
+            model_kwargs = {
+                'learning_rate': 1e-4,
+                'buffer_size': 100000,
+                'batch_size': 256,
+                'gamma': 0.99,
+                'device': device
+            }
+        else:  # ddpg
+            model_kwargs = {
+                'learning_rate': 1e-4,
+                'buffer_size': 100000,
+                'batch_size': 128,
+                'gamma': 0.99,
+                'device': device
+            }
+        
+        model = agent.get_model(model_type.lower(), model_kwargs=model_kwargs)
+        
+        trained_model = agent.train_model(
+            model=model,
+            tb_log_name=f"legacy_{model_type}",
+            total_timesteps=50000
+        )
+        
+        # Save model
+        model_path = os.path.join(MODEL_DIR, f"legacy_{model_type}")
+        trained_model.save(model_path)
+        
+        if verbose >= 1:
+            print(f"💾 Model saved to {model_path}")
+        
+        # Test model
+        if verbose >= 1:
+            print("📊 Testing model...")
+        
+        df_account_value, df_actions = DRLAgent.DRL_prediction(
+            model=trained_model,
+            environment=test_env
+        )
+        
+        # Simple analysis
+        initial_value = INITIAL_AMOUNT
+        final_value = df_account_value['account_value'].iloc[-1]
+        total_return = (final_value - initial_value) / initial_value * 100
+        
+        if verbose >= 1:
+            print(f"\n🎉 Legacy {model_type.upper()} completed successfully!")
+            print(f"🏆 Agent achieved {total_return:.2f}% return")
+            print(f"💾 Final portfolio value: ${final_value:,.2f}")
+        
+        # Generate plots if requested
+        if plot_results:
+            try:
+                results = analyze_and_plot_results(
+                    df_account_value, 
+                    test_df, 
+                    save_path=os.path.join(MODEL_DIR, f'legacy_{model_type}_performance.png'),
+                    verbose=verbose
+                )
+            except Exception as e:
+                if verbose >= 1:
+                    print(f"⚠️ Plotting failed: {e}")
+        
+        return True
+        
     except Exception as e:
-        print(f"❌ Error occurred: {str(e)}")
-        print("💡 Check your internet connection and try again")
+        if verbose >= 1:
+            print(f"❌ Legacy mode failed: {e}")
+        return False
+
+def load_and_prepare_data(symbols=None, force_download=False, verbose=1):
+    """Load และเตรียมข้อมูล"""
+    data_manager = DataManager()
+    
+    if verbose >= 1:
+        print("\n📊 Loading cryptocurrency data...")
+    
+    try:
+        # Load data
+        data = data_manager.load_crypto_data(
+            symbols=symbols or CRYPTO_SYMBOLS,
+            force_download=force_download
+        )
+        
+        # Add technical indicators
+        data = data_manager.add_technical_indicators(data)
+        
+        if verbose >= 1:
+            print(f"✅ Data prepared successfully!")
+            print(f"   📈 Symbols: {data['tic'].unique()}")
+            print(f"   📊 Rows: {len(data):,}")
+            print(f"   📅 Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
+            print(f"   🔢 Features: {len(data.columns)} columns")
+        
+        return data
+        
+    except Exception as e:
+        print(f"❌ Failed to load data: {e}")
+        return None
+
+def interactive_mode(verbose=1):
+    """Interactive CLI mode"""
+    if verbose >= 1:
+        print("\n🎮 Starting Interactive Mode...")
+    
+    try:
+        cli = InteractiveCLI()
+        cli.main_menu()
+    except KeyboardInterrupt:
+        print("\n\n👋 Exiting interactive mode...")
+    except Exception as e:
+        print(f"❌ Interactive mode error: {e}")
+
+def train_mode(grade='C', algorithm='SAC', environment='enhanced', timesteps=None, 
+               symbols=None, force_download=False, save_path=None, verbose=1):
+    """Direct training mode"""
+    if verbose >= 1:
+        print(f"\n🏋️ Starting Training Mode")
+        print(f"   🤖 Algorithm: {algorithm}")
+        print(f"   🎯 Grade: {grade}")
+        print(f"   🏗️ Environment: {environment}")
+    
+    try:
+        # Load data
+        data = load_and_prepare_data(symbols, force_download, verbose)
+        if data is None:
+            return False
+        
+        # Create agent based on algorithm
+        if verbose >= 1:
+            print(f"\n🤖 Creating {algorithm} Agent (Grade {grade})...")
+        
+        if algorithm == 'SAC':
+            agent = create_crypto_sac_agent(grade=grade)
+        elif algorithm == 'PPO':
+            # For now, use SAC as base - can be extended later
+            if verbose >= 1:
+                print("⚠️ PPO implementation coming soon. Using SAC for now.")
+            agent = create_crypto_sac_agent(grade=grade)
+        else:
+            # For other algorithms, use SAC as fallback
+            if verbose >= 1:
+                print(f"⚠️ {algorithm} implementation coming soon. Using SAC for now.")
+            agent = create_crypto_sac_agent(grade=grade)
+        
+        # Set additional agent properties
+        agent.algorithm = algorithm
+        agent.environment_type = environment
+        
+        if verbose >= 1:
+            print(f"   ID: {agent.agent_id}")
+            print(f"   Timesteps: {agent.config['total_timesteps']:,}")
+            print(f"   Buffer Size: {agent.config['buffer_size']:,}")
+        
+        # Create environment based on type
+        if verbose >= 1:
+            print(f"\n🏗️ Creating {environment} trading environment...")
+        
+        if environment == 'enhanced':
+            # Use enhanced environment
+            try:
+                from enhanced_crypto_env import EnhancedCryptoTradingEnv
+                train_env, test_env = agent.create_environment(data, env_class=EnhancedCryptoTradingEnv)
+            except ImportError:
+                if verbose >= 1:
+                    print("⚠️ Enhanced environment not available. Using basic environment.")
+                train_env, test_env = agent.create_environment(data)
+        else:
+            # Use basic environment
+            train_env, test_env = agent.create_environment(data)
+        
+        # Train agent
+        if verbose >= 1:
+            print("\n🚀 Starting training...")
+            print("⚠️ This may take several minutes...")
+        
+        model = agent.train(timesteps=timesteps, verbose=verbose)
+        
+        # Save agent
+        if verbose >= 1:
+            print("\n💾 Saving trained agent...")
+        
+        saved_path = agent.save(save_path)
+        
+        if verbose >= 1:
+            print(f"✅ Training completed successfully!")
+            print(f"   📄 Saved to: {saved_path}")
+            print(f"   🤖 Agent ID: {agent.agent_id}")
+            print(f"   🎯 Algorithm: {algorithm}")
+            print(f"   🏗️ Environment: {environment}")
+        
+        # Quick evaluation
+        if verbose >= 1:
+            print("\n🧪 Quick evaluation...")
+        
+        try:
+            results = agent.evaluate(n_episodes=5, verbose=0)
+            if verbose >= 1:
+                print(f"   🎯 Mean Reward: {results['mean_reward']:.4f}")
+                print(f"   🏆 Best Reward: {results['max_reward']:.4f}")
+        except Exception as e:
+            if verbose >= 1:
+                print(f"   ⚠️ Evaluation failed: {e}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Training failed: {e}")
+        return False
+
+def test_mode(agent_id, episodes=10, verbose=1):
+    """Testing mode"""
+    if verbose >= 1:
+        print(f"\n🧪 Starting Test Mode...")
+        print(f"   🤖 Agent ID: {agent_id}")
+        print(f"   📊 Episodes: {episodes}")
+    
+    try:
+        # Find agent file
+        agent_manager = AgentManager()
+        agents = agent_manager.list_available_agents()
+        
+        # Find matching agent
+        matching_agent = None
+        for agent_info in agents:
+            if agent_id in agent_info['name'] or agent_info['name'] == agent_id:
+                matching_agent = agent_info
+                break
+        
+        if matching_agent is None:
+            print(f"❌ Agent not found: {agent_id}")
+            print("📋 Available agents:")
+            for agent_info in agents:
+                print(f"   - {agent_info['name']}")
+            return False
+        
+        # Load agent
+        if verbose >= 1:
+            print(f"\n📊 Loading agent: {matching_agent['name']}")
+        
+        agent = agent_manager.load_agent(matching_agent['name'])
+        if agent is None:
+            return False
+        
+        # Check if agent is trained
+        if not agent.is_trained:
+            print("❌ Agent is not trained")
+            return False
+        
+        # Load data for testing
+        data = load_and_prepare_data(verbose=verbose)
+        if data is None:
+            return False
+        
+        # Create environment if needed
+        if agent.test_env is None:
+            if verbose >= 1:
+                print("🏗️ Creating test environment...")
+            agent.create_environment(data)
+        
+        # Evaluate agent
+        if verbose >= 1:
+            print(f"\n🔍 Evaluating agent...")
+        
+        results = agent.evaluate(n_episodes=episodes, verbose=verbose)
+        
+        if verbose >= 1:
+            print(f"\n📊 Test Results:")
+            print(f"   🎯 Mean Reward: {results['mean_reward']:.4f} ± {results['std_reward']:.4f}")
+            print(f"   🏆 Best Reward: {results['max_reward']:.4f}")
+            print(f"   📉 Worst Reward: {results['min_reward']:.4f}")
+            print(f"   📏 Avg Episode Length: {results['mean_episode_length']:.1f}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Testing failed: {e}")
+        return False
+
+def compare_mode(verbose=1):
+    """Comparison mode"""
+    if verbose >= 1:
+        print("\n🔍 Starting Comparison Mode...")
+    
+    try:
+        agent_manager = AgentManager()
+        agents = agent_manager.list_available_agents()
+        
+        if len(agents) == 0:
+            print("❌ No agents found for comparison")
+            return False
+        
+        if verbose >= 1:
+            print(f"📋 Found {len(agents)} agents")
+        
+        # Display comparison table
+        print(f"\n📊 Agent Comparison:")
+        print(f"{'Name':<35} {'Grade':<5} {'Mean Reward':<12} {'Created':<16}")
+        print("-" * 75)
+        
+        for agent in agents:
+            name = agent['name'][:33] + ".." if len(agent['name']) > 35 else agent['name']
+            grade = agent['grade']
+            
+            mean_reward = "N/A"
+            if agent['performance']:
+                mr = agent['performance'].get('mean_reward')
+                if mr is not None:
+                    mean_reward = f"{mr:.4f}"
+            
+            created = agent['created_date'].strftime('%Y-%m-%d %H:%M')
+            print(f"{name:<35} {grade:<5} {mean_reward:<12} {created:<16}")
+        
+        # Summary by grade
+        if verbose >= 1:
+            print(f"\n📈 Summary by Grade:")
+            grade_counts = {}
+            for agent in agents:
+                grade = agent['grade']
+                grade_counts[grade] = grade_counts.get(grade, 0) + 1
+            
+            for grade in ['N', 'D', 'C', 'B', 'A', 'S']:
+                count = grade_counts.get(grade, 0)
+                if count > 0:
+                    print(f"   Grade {grade}: {count} agents")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Comparison failed: {e}")
+        return False
+
+def info_mode(verbose=1):
+    """Information mode"""
+    if verbose >= 1:
+        print("\n📋 System Information")
+        print("-" * 30)
+    
+    try:
+        import torch
+        import pandas as pd
+        import numpy as np
+        
+        print(f"🐍 Python: {sys.version}")
+        print(f"🔥 PyTorch: {torch.__version__}")
+        print(f"📊 Pandas: {pd.__version__}")
+        print(f"🔢 NumPy: {np.__version__}")
+        print(f"🎯 CUDA Available: {torch.cuda.is_available()}")
+        
+        if torch.cuda.is_available():
+            print(f"🖥️ GPU: {torch.cuda.get_device_name(0)}")
+            print(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+        
+        # Project info
+        print(f"\n📁 Project Directories:")
+        print(f"   Data: {DATA_DIR}")
+        print(f"   Models: {MODEL_DIR}")
+        print(f"   SAC Models: {os.path.join(MODEL_DIR, 'sac')}")
+        
+        # Agent count
+        agent_manager = AgentManager()
+        agents = agent_manager.list_available_agents()
+        print(f"\n🤖 Saved Agents: {len(agents)}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Info failed: {e}")
+        return False
+
+def main():
+    """Main function"""
+    parser = setup_argument_parser()
+    args = parser.parse_args()
+    
+    # Set verbosity
+    if args.quiet:
+        verbose = 0
+    else:
+        verbose = args.verbose
+    
+    # Print banner
+    if verbose >= 1:
+        print_banner()
+        print(f"🎮 Mode: {args.mode}")
+        if args.mode != 'interactive':
+            print(f"⚙️ Arguments: {vars(args)}")
+    
+    # Execute based on mode
+    success = False
+    
+    try:
+        if args.mode == 'interactive':
+            interactive_mode(verbose)
+            success = True
+            
+        elif args.mode == 'train':
+            success = train_mode(
+                grade=args.grade,
+                algorithm=args.algorithm,
+                environment=args.environment,
+                timesteps=args.timesteps,
+                symbols=args.symbols,
+                force_download=args.force_download,
+                save_path=args.save_path,
+                verbose=verbose
+            )
+            
+        elif args.mode == 'test':
+            if not args.agent_id:
+                print("❌ Agent ID required for test mode. Use --agent-id")
+                parser.print_help()
+                sys.exit(1)
+            
+            success = test_mode(
+                agent_id=args.agent_id,
+                episodes=args.episodes,
+                verbose=verbose
+            )
+            
+        elif args.mode == 'compare':
+            success = compare_mode(verbose)
+            
+        elif args.mode == 'info':
+            success = info_mode(verbose)
+        
+        elif args.mode == 'legacy':
+            success = legacy_mode(
+                model_type=args.legacy_model,
+                symbols=args.symbols,
+                force_download=args.force_download,
+                plot_results=args.plot_results,
+                verbose=verbose
+            )
+        
+        # Exit with appropriate code
+        if success:
+            if verbose >= 1:
+                print(f"\n🎉 {args.mode.title()} mode completed successfully!")
+            sys.exit(0)
+        else:
+            if verbose >= 1:
+                print(f"\n❌ {args.mode.title()} mode failed!")
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        if verbose >= 1:
+            print("\n\n👋 Operation cancelled by user")
+        sys.exit(130)  # Standard exit code for Ctrl+C
+        
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        if verbose >= 2:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
-    
+    main() 
