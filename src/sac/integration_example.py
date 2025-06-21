@@ -240,7 +240,7 @@ def demo_integration_with_streamlit():
     streamlit_code = '''
 # In your Streamlit app (ui/pages/3_Train_Agent.py)
 import streamlit as st
-from models.sac.enhanced_sac_trainer import create_enhanced_sac_trainer
+from .enhanced_sac_trainer import create_enhanced_sac_trainer
 
 # Grade selection
 grade = st.selectbox(

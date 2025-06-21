@@ -38,7 +38,7 @@ except ImportError:
     print("Warning: Stable-baselines3 not installed. Please install it.")
 
 # Import metadata manager
-from sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager, create_sac_metadata_manager
+from .sac_metadata_manager import SAC_AgentMetadata, SAC_MetadataManager, create_sac_metadata_manager
 
 # Import configs
 try:
