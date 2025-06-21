@@ -1,0 +1,167 @@
+name: 🚀 Feature Request
+description: Request a new feature or enhancement for finrl_minimal_crypto
+title: "[FEATURE] "
+labels: ["enhancement", "feature request"]
+assignees:
+  - codeasai
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🚀 Feature Request
+        
+        Thank you for suggesting a new feature! Please provide detailed information to help us understand your request.
+        
+        ---
+
+  - type: input
+    id: request_id
+    attributes:
+      label: 📋 Request ID
+      description: Unique identifier for this feature request (e.g., FR-2024-002)
+      placeholder: "FR-2024-XXX"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🔥 Priority
+      description: How important is this feature?
+      options:
+        - 🔥 High - Critical for project success
+        - 🟡 Medium - Important but not urgent
+        - 🟢 Low - Nice to have
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 📂 Category
+      description: What type of feature is this?
+      options:
+        - 🎯 Performance Enhancement
+        - 🆕 New Feature
+        - 🔧 Technical Improvement
+        - 📊 Data Enhancement
+        - 🤖 Agent Improvement
+        - 🎨 UI/UX Enhancement
+        - 📝 Documentation
+        - 🧪 Testing
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: 🎯 Objective
+      description: What is the main goal of this feature?
+      placeholder: Describe what you want to achieve with this feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_situation
+    attributes:
+      label: 📊 Current Situation
+      description: Describe the current state and any limitations
+      placeholder: What is the current behavior? What are the pain points?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: Describe your proposed solution in detail
+      placeholder: How would you like this feature to work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: success_metrics
+    attributes:
+      label: 📈 Success Metrics
+      description: How will we measure the success of this feature?
+      placeholder: |
+        - Metric 1: Target value
+        - Metric 2: Target value
+        - Metric 3: Target value
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation_plan
+    attributes:
+      label: 🛠️ Implementation Plan (Optional)
+      description: If you have ideas about implementation, please share
+      placeholder: |
+        Phase 1: Description
+        Phase 2: Description
+        ...
+    validations:
+      required: false
+
+  - type: input
+    id: timeline
+    attributes:
+      label: ⏱️ Estimated Timeline
+      description: How long do you think this feature will take?
+      placeholder: "e.g., 2 weeks, 1 month, 3 months"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: 🎯 Expected Impact
+      description: What areas will this feature impact?
+      options:
+        - label: Agent Performance
+        - label: Data Quality
+        - label: User Experience
+        - label: System Reliability
+        - label: Development Efficiency
+        - label: Documentation Quality
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 🔗 Dependencies
+      description: Are there any dependencies or requirements?
+      placeholder: List any dependencies, requirements, or prerequisites...
+    validations:
+      required: false
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: 🚨 Potential Risks
+      description: What risks or challenges do you foresee?
+      placeholder: List potential risks and how they might be mitigated...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context, screenshots, or examples
+      placeholder: Any additional information that would be helpful...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have provided detailed information about this feature
+          required: true
+        - label: I understand this is a request and not a guarantee of implementation
+          required: true 
