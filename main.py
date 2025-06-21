@@ -343,29 +343,71 @@ def legacy_mode(model_type='ppo', symbols=None, force_download=False, plot_resul
 
 def load_and_prepare_data(symbols=None, force_download=False, verbose=1):
     """Load และเตรียมข้อมูล"""
-    data_manager = DataManager()
-    
     if verbose >= 1:
         print("\n📊 Loading cryptocurrency data...")
     
     try:
-        # Load data
-        data = data_manager.load_crypto_data(
-            symbols=symbols or CRYPTO_SYMBOLS,
-            force_download=force_download
-        )
-        
-        # Add technical indicators
-        data = data_manager.add_technical_indicators(data)
-        
-        if verbose >= 1:
-            print(f"✅ Data prepared successfully!")
-            print(f"   📈 Symbols: {data['tic'].unique()}")
-            print(f"   📊 Rows: {len(data):,}")
-            print(f"   📅 Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
-            print(f"   🔢 Features: {len(data.columns)} columns")
-        
-        return data
+        # Try to load feature data first
+        try:
+            from src.data_feature import get_crypto_feature_summary, CryptoFeatureProcessor
+            
+            feature_summary = get_crypto_feature_summary()
+            if feature_summary['total_files'] > 0:
+                if verbose >= 1:
+                    print(f"📁 Using feature data ({feature_summary['total_files']} files)")
+                
+                processor = CryptoFeatureProcessor()
+                available_files = processor.list_available_feature_data()
+                
+                # Filter files for selected symbols
+                target_symbols = symbols or CRYPTO_SYMBOLS
+                matching_files = []
+                for file_info in available_files:
+                    if file_info['symbol'] in target_symbols:
+                        matching_files.append(file_info)
+                
+                # If no specific symbols requested, use all available
+                if not matching_files and not symbols:
+                    matching_files = available_files
+                
+                if matching_files:
+                    # Load and combine feature data
+                    import pandas as pd
+                    combined_data = []
+                    for file_info in matching_files:
+                        file_path = file_info['file_path']
+                        data = pd.read_csv(file_path)
+                        data['timestamp'] = pd.to_datetime(data['timestamp'])
+                        
+                        # Add tic column if not present
+                        if 'tic' not in data.columns:
+                            data['tic'] = file_info['symbol']
+                        
+                        combined_data.append(data)
+                        if verbose >= 1:
+                            print(f"   📊 Loaded {file_info['symbol']}: {len(data)} rows")
+                    
+                    # Combine all data
+                    if len(combined_data) == 1:
+                        data = combined_data[0]
+                    else:
+                        data = pd.concat(combined_data, ignore_index=True)
+                        data = data.sort_values(['tic', 'timestamp']).reset_index(drop=True)
+                    
+                    if verbose >= 1:
+                        print(f"✅ Feature data loaded successfully!")
+                        print(f"   📈 Symbols: {data['tic'].unique()}")
+                        print(f"   📊 Rows: {len(data):,}")
+                        print(f"   📅 Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
+                        print(f"   🔢 Features: {len(data.columns)} columns")
+                    
+                    return data
+                    
+        except Exception as e:
+            if verbose >= 1:
+                print(f"⚠️ Feature data not available: {e}")
+                print("❌ No data available for training")
+            return None
         
     except Exception as e:
         print(f"❌ Failed to load data: {e}")
@@ -392,6 +434,28 @@ def train_mode(grade='C', algorithm='SAC', environment='enhanced', timesteps=Non
         print(f"   🤖 Algorithm: {algorithm}")
         print(f"   🎯 Grade: {grade}")
         print(f"   🏗️ Environment: {environment}")
+    
+    # GPU requirement check
+    try:
+        from config.config import GPU_AVAILABLE, DEVICE
+        
+        if not GPU_AVAILABLE:
+            print("❌ GPU is required for training but not available!")
+            print("💡 Please ensure:")
+            print("   1. NVIDIA GPU is installed")
+            print("   2. CUDA drivers are installed")
+            print("   3. PyTorch with CUDA support is installed")
+            print("   4. GPU has sufficient memory")
+            print("\n🚫 Training aborted due to missing GPU")
+            return False
+        
+        if verbose >= 1:
+            print(f"✅ GPU check passed: {DEVICE}")
+            
+    except Exception as e:
+        print(f"❌ GPU check failed: {e}")
+        print("🚫 Training aborted")
+        return False
     
     try:
         # Load data
@@ -440,7 +504,13 @@ def train_mode(grade='C', algorithm='SAC', environment='enhanced', timesteps=Non
                 train_env, test_env = agent.create_environment(data)
         else:
             # Use basic environment
-            train_env, test_env = agent.create_environment(data)
+            try:
+                from src.agents.crypto_agent import BasicCryptoTradingEnv
+                train_env, test_env = agent.create_environment(data, env_class=BasicCryptoTradingEnv)
+            except ImportError:
+                if verbose >= 1:
+                    print("⚠️ Basic environment not available. Using enhanced environment.")
+                train_env, test_env = agent.create_environment(data)
         
         # Train agent
         if verbose >= 1:
@@ -572,17 +642,22 @@ def compare_mode(verbose=1):
         print("-" * 75)
         
         for agent in agents:
-            name = agent['name'][:33] + ".." if len(agent['name']) > 35 else agent['name']
-            grade = agent['grade']
-            
-            mean_reward = "N/A"
-            if agent['performance']:
-                mr = agent['performance'].get('mean_reward')
-                if mr is not None:
-                    mean_reward = f"{mr:.4f}"
-            
-            created = agent['created_date'].strftime('%Y-%m-%d %H:%M')
-            print(f"{name:<35} {grade:<5} {mean_reward:<12} {created:<16}")
+            try:
+                name = agent['name'][:33] + ".." if len(agent['name']) > 35 else agent['name']
+                grade = agent.get('grade', 'Unknown')
+                
+                mean_reward = "N/A"
+                if agent.get('performance'):
+                    mr = agent['performance'].get('mean_reward')
+                    if mr is not None:
+                        mean_reward = f"{mr:.4f}"
+                
+                created = agent['created_date'].strftime('%Y-%m-%d %H:%M')
+                print(f"{name:<35} {grade:<5} {mean_reward:<12} {created:<16}")
+                
+            except Exception as e:
+                print(f"Error displaying agent {agent.get('name', 'Unknown')}: {e}")
+                continue
         
         # Summary by grade
         if verbose >= 1:
@@ -613,16 +688,25 @@ def info_mode(verbose=1):
         import torch
         import pandas as pd
         import numpy as np
+        from config.config import GPU_AVAILABLE, DEVICE
         
         print(f"🐍 Python: {sys.version}")
         print(f"🔥 PyTorch: {torch.__version__}")
         print(f"📊 Pandas: {pd.__version__}")
         print(f"🔢 NumPy: {np.__version__}")
-        print(f"🎯 CUDA Available: {torch.cuda.is_available()}")
+        
+        # GPU Information with detailed status
+        print(f"\n🖥️ GPU Status:")
+        print(f"   CUDA Available: {torch.cuda.is_available()}")
+        print(f"   Training Ready: {'✅ YES' if GPU_AVAILABLE else '❌ NO'}")
         
         if torch.cuda.is_available():
-            print(f"🖥️ GPU: {torch.cuda.get_device_name(0)}")
-            print(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+            print(f"   GPU Device: {torch.cuda.get_device_name(0)}")
+            print(f"   GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+            print(f"   Device Config: {DEVICE}")
+        else:
+            print("   ⚠️ No GPU detected - Training will not be allowed")
+            print("   💡 Please install NVIDIA GPU and CUDA drivers")
         
         # Project info
         print(f"\n📁 Project Directories:")
@@ -634,6 +718,15 @@ def info_mode(verbose=1):
         agent_manager = AgentManager()
         agents = agent_manager.list_available_agents()
         print(f"\n🤖 Saved Agents: {len(agents)}")
+        
+        # Training capability summary
+        print(f"\n🏋️ Training Capability:")
+        if GPU_AVAILABLE:
+            print("   ✅ Ready for training")
+            print("   🚀 All systems operational")
+        else:
+            print("   ❌ Training disabled - GPU required")
+            print("   🚫 Install GPU to enable training")
         
         return True
         

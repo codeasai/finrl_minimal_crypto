@@ -92,6 +92,205 @@ class MetadataCallback(BaseCallback):
         
         return True
 
+class BasicCryptoTradingEnv(gym.Env):
+    """Basic Cryptocurrency Trading Environment - Simplified Version"""
+    
+    def __init__(self, df, grade='C', initial_amount=100000, transaction_cost_pct=0.001, max_holdings=100):
+        super(BasicCryptoTradingEnv, self).__init__()
+        
+        self.df = df.reset_index(drop=True)
+        self.grade = grade
+        self.initial_amount = initial_amount
+        self.transaction_cost_pct = transaction_cost_pct
+        self.max_holdings = max_holdings
+        
+        # Basic features only
+        self.enable_advanced_features = False
+        self.enable_multi_asset = False
+        self.enable_portfolio_management = False
+        self.enable_risk_management = False
+        
+        # Current state
+        self.current_step = 0
+        self.cash = initial_amount
+        self.holdings = 0
+        self.total_value = initial_amount
+        self.trade_history = []
+        
+        # Setup spaces
+        self._setup_action_space()
+        self._setup_observation_space()
+        
+        print(f"🏗️ Created Basic Crypto Environment (Grade {grade})")
+        print(f"   📊 Features: Basic mode (simplified)")
+        print(f"   🔍 Observation space: {self.observation_space.shape[0]} features "
+              f"({self._count_indicator_features()} indicators + "
+              f"{self._count_portfolio_features()} portfolio + "
+              f"{self._count_market_features()} market)")
+    
+    def _setup_action_space(self):
+        """Setup action space - continuous for SAC compatibility"""
+        # Continuous action space for SAC: -1 to 1 (position sizing)
+        # -1 = sell all, 0 = hold, 1 = buy all
+        self.action_space = gym.spaces.Box(
+            low=-1.0, high=1.0, shape=(1,), dtype=np.float32
+        )
+    
+    def _setup_observation_space(self):
+        """Setup observation space - basic features only"""
+        # Technical indicators (basic set)
+        tech_indicators = ['close', 'sma_20', 'ema_20', 'rsi_14', 'macd', 'macd_signal', 'volume', 'volume_sma_20', 'volume_ratio']
+        
+        # Portfolio state (basic)
+        portfolio_features = ['cash', 'holdings', 'total_value']
+        
+        # Total features
+        total_features = len(tech_indicators) + len(portfolio_features)
+        
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(total_features,),
+            dtype=np.float32
+        )
+        
+        self.feature_names = tech_indicators + portfolio_features
+    
+    def _count_indicator_features(self):
+        """Count technical indicator features"""
+        return 9  # Basic indicators
+    
+    def _count_portfolio_features(self):
+        """Count portfolio features"""
+        return 3  # cash, holdings, total_value
+    
+    def _count_market_features(self):
+        """Count market features"""
+        return 0  # No advanced market features in basic mode
+    
+    def _get_observation(self):
+        """Get current observation"""
+        if self.current_step >= len(self.df):
+            self.current_step = len(self.df) - 1
+        
+        current_data = self.df.iloc[self.current_step]
+        
+        # Technical indicators
+        obs = [
+            float(current_data.get('close', 0)),
+            float(current_data.get('sma_20', 0)),
+            float(current_data.get('ema_20', 0)),
+            float(current_data.get('rsi_14', 0)),
+            float(current_data.get('macd', 0)),
+            float(current_data.get('macd_signal', 0)),
+            float(current_data.get('volume', 0)),
+            float(current_data.get('volume_sma_20', 0)),
+            float(current_data.get('volume_ratio', 0))
+        ]
+        
+        # Portfolio state
+        obs.extend([
+            float(self.cash / self.initial_amount),  # Normalized cash
+            float(self.holdings),
+            float(self.total_value / self.initial_amount)  # Normalized total value
+        ])
+        
+        return np.array(obs, dtype=np.float32)
+    
+    def reset(self, seed=None, options=None):
+        """Reset environment"""
+        super().reset(seed=seed)
+        
+        self.current_step = 0
+        self.cash = self.initial_amount
+        self.holdings = 0
+        self.total_value = self.initial_amount
+        self.trade_history = []
+        
+        observation = self._get_observation()
+        info = {}
+        
+        return observation, info
+    
+    def step(self, action):
+        """Execute one step with continuous action"""
+        if self.current_step >= len(self.df) - 1:
+            # Episode finished
+            observation = self._get_observation()
+            reward = 0
+            terminated = True
+            truncated = False
+            info = {'final_value': self.total_value}
+            return observation, reward, terminated, truncated, info
+        
+        current_data = self.df.iloc[self.current_step]
+        current_price = float(current_data['close'])
+        
+        # Extract action value (continuous between -1 and 1)
+        action_value = float(action[0]) if isinstance(action, (list, np.ndarray)) else float(action)
+        action_value = np.clip(action_value, -1.0, 1.0)
+        
+        # Calculate portfolio value before action
+        prev_total_value = self.cash + self.holdings * current_price
+        
+        # Execute continuous action
+        reward = 0
+        if action_value > 0.1:  # Buy (threshold to avoid micro-transactions)
+            # Buy with proportion of available cash
+            buy_ratio = action_value
+            max_buy_amount = self.cash * 0.95  # Keep some cash buffer
+            buy_amount = max_buy_amount * buy_ratio
+            
+            if buy_amount > current_price * (1 + self.transaction_cost_pct):
+                shares_to_buy = buy_amount / (current_price * (1 + self.transaction_cost_pct))
+                cost = shares_to_buy * current_price * (1 + self.transaction_cost_pct)
+                
+                if cost <= self.cash:
+                    self.cash -= cost
+                    self.holdings += shares_to_buy
+                    reward = -self.transaction_cost_pct * abs(action_value)  # Scaled transaction cost
+                
+        elif action_value < -0.1:  # Sell (threshold to avoid micro-transactions)
+            # Sell proportion of holdings
+            sell_ratio = abs(action_value)
+            shares_to_sell = self.holdings * sell_ratio
+            
+            if shares_to_sell > 0:
+                proceeds = shares_to_sell * current_price * (1 - self.transaction_cost_pct)
+                self.cash += proceeds
+                self.holdings -= shares_to_sell
+                reward = -self.transaction_cost_pct * abs(action_value)  # Scaled transaction cost
+        
+        # Calculate new total value
+        self.total_value = self.cash + self.holdings * current_price
+        
+        # Calculate reward based on portfolio performance
+        if prev_total_value > 0:
+            portfolio_return = (self.total_value - prev_total_value) / prev_total_value
+            reward += portfolio_return * 10.0  # Scale reward for better learning
+        
+        # Add small penalty for doing nothing when there are opportunities
+        if abs(action_value) < 0.1:
+            reward -= 0.001  # Small penalty for inaction
+        
+        # Move to next step
+        self.current_step += 1
+        
+        # Check if episode is done
+        terminated = self.current_step >= len(self.df) - 1
+        truncated = False
+        
+        observation = self._get_observation()
+        info = {
+            'total_value': self.total_value,
+            'cash': self.cash,
+            'holdings': self.holdings,
+            'current_price': current_price,
+            'action_value': action_value
+        }
+        
+        return observation, reward, terminated, truncated, info
+
 class EnhancedCryptoTradingEnv(gym.Env):
     """Enhanced Cryptocurrency Trading Environment with Grade-based Features"""
     
@@ -512,13 +711,14 @@ class CryptoSACAgent:
                 'performance_metrics': {}
             }
     
-    def create_environment(self, data, test_split=0.2):
+    def create_environment(self, data, test_split=0.2, env_class=None):
         """
         Create trading environment with train/test split
         
         Args:
             data: DataFrame with OHLCV data and technical indicators
             test_split: Fraction of data to use for testing
+            env_class: Environment class to use (default: EnhancedCryptoTradingEnv)
         """
         print(f"🏗️ Creating trading environment...")
         
@@ -536,15 +736,27 @@ class CryptoSACAgent:
         print(f"   📊 Train data: {len(train_data)} rows")
         print(f"   📊 Test data: {len(test_data)} rows")
         
+        # Determine environment class
+        if env_class is None:
+            # Use enhanced environment by default
+            env_class = EnhancedCryptoTradingEnv
+            env_type_name = "Enhanced"
+        else:
+            # Use provided environment class
+            if hasattr(env_class, '__name__'):
+                env_type_name = env_class.__name__.replace('CryptoTradingEnv', '').replace('Enhanced', 'Enhanced').replace('Basic', 'Basic')
+            else:
+                env_type_name = str(env_class)
+        
         # Create environments
-        self.train_env = EnhancedCryptoTradingEnv(
+        self.train_env = env_class(
             df=train_data,
             grade=self.grade,
             initial_amount=INITIAL_AMOUNT,
             transaction_cost_pct=TRANSACTION_COST_PCT
         )
         
-        self.test_env = EnhancedCryptoTradingEnv(
+        self.test_env = env_class(
             df=test_data,
             grade=self.grade,
             initial_amount=INITIAL_AMOUNT,
@@ -573,6 +785,23 @@ class CryptoSACAgent:
             save_freq: Frequency for model saving
             verbose: Verbosity level
         """
+        # GPU requirement check
+        import torch
+        from config.config import GPU_AVAILABLE, DEVICE
+        
+        if not GPU_AVAILABLE:
+            error_msg = "❌ GPU is required for training but not available!"
+            print(error_msg)
+            print("💡 Please ensure:")
+            print("   1. NVIDIA GPU is installed")
+            print("   2. CUDA drivers are installed")
+            print("   3. PyTorch with CUDA support is installed")
+            print("   4. GPU has sufficient memory")
+            raise RuntimeError("GPU required for training but not available")
+        
+        print(f"🖥️ Using device: {DEVICE}")
+        print(f"💾 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+        
         if self.env is None:
             raise ValueError("Environment not created. Call create_environment() first.")
         
@@ -588,7 +817,7 @@ class CryptoSACAgent:
         else:
             self.metadata['training_start_time'] = datetime.now()
         
-        # Create SAC model
+        # Create SAC model with forced CUDA device
         sac_params = {
             'learning_rate': self.config.get('learning_rate', 3e-4),
             'buffer_size': self.config.get('buffer_size', 100000),
@@ -599,7 +828,7 @@ class CryptoSACAgent:
             'train_freq': self.config.get('train_freq', 1),
             'gradient_steps': self.config.get('gradient_steps', 1),
             'verbose': verbose,
-            'device': 'auto'
+            'device': 'cuda'  # Force CUDA device
         }
         
         print(f"   ⚙️ SAC Parameters: {sac_params}")
@@ -609,6 +838,15 @@ class CryptoSACAgent:
             self.env,
             **sac_params
         )
+        
+        # Verify model is on GPU
+        if hasattr(self.model.policy, 'device'):
+            model_device = str(self.model.policy.device)
+            if 'cuda' not in model_device:
+                raise RuntimeError(f"Model not on GPU. Device: {model_device}")
+            print(f"   ✅ Model loaded on: {model_device}")
+        else:
+            print(f"   ⚠️ Cannot verify model device")
         
         # Create callback for metadata tracking
         callback = MetadataCallback(
@@ -746,32 +984,40 @@ class CryptoSACAgent:
             path: Save path (auto-generated if None)
             save_metadata: Whether to save metadata
         """
-        if self.model is None:
-            raise ValueError("No model to save. Train the agent first.")
-        
         # Generate path if not provided
         if path is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            path = os.path.join(MODEL_DIR, "sac", f"sac_agent_{self.grade}_{timestamp}")
+            path = os.path.join(MODEL_DIR, "sac", "agents", f"{self.agent_id}")
         
         # Ensure directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
         try:
-            # Save model
-            model_path = f"{path}.zip"
-            self.model.save(model_path)
+            saved_files = []
             
-            # Save metadata
+            # Save model if trained
+            if self.model is not None:
+                model_path = f"{path}.zip"
+                self.model.save(model_path)
+                saved_files.append(f"Model: {model_path}")
+            else:
+                print("⚠️ Model not trained yet - saving metadata only")
+            
+            # Save metadata (always save metadata)
             if save_metadata:
                 if hasattr(self.metadata, 'to_dict'):
                     metadata_dict = self.metadata.to_dict()
                 else:
                     metadata_dict = self.metadata
                 
+                # Add current status to metadata
+                metadata_dict['is_trained'] = self.is_trained
+                metadata_dict['save_date'] = datetime.now()
+                
                 metadata_path = f"{path}_info.pkl"
                 with open(metadata_path, 'wb') as f:
                     pickle.dump(metadata_dict, f)
+                saved_files.append(f"Metadata: {metadata_path}")
                 
                 # Also save as JSON for readability
                 json_path = f"{path}_metadata.json"
@@ -779,12 +1025,11 @@ class CryptoSACAgent:
                     # Convert datetime objects to strings for JSON serialization
                     json_dict = self._prepare_for_json(metadata_dict)
                     json.dump(json_dict, f, indent=2, ensure_ascii=False)
+                saved_files.append(f"JSON: {json_path}")
             
             print(f"💾 Agent saved successfully!")
-            print(f"   📄 Model: {model_path}")
-            if save_metadata:
-                print(f"   📊 Metadata: {metadata_path}")
-                print(f"   📋 JSON: {json_path}")
+            for file_info in saved_files:
+                print(f"   📄 {file_info}")
             
             return path
             

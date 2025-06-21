@@ -8,6 +8,7 @@ Contains all RL agent implementations:
 
 from .crypto_agent import (
     CryptoSACAgent,
+    BasicCryptoTradingEnv,
     EnhancedCryptoTradingEnv,
     MetadataCallback,
     create_crypto_sac_agent,
@@ -19,6 +20,7 @@ __author__ = "finrl_minimal_crypto"
 
 __all__ = [
     'CryptoSACAgent',
+    'BasicCryptoTradingEnv',
     'EnhancedCryptoTradingEnv', 
     'MetadataCallback',
     'create_crypto_sac_agent',

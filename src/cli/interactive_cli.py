@@ -43,7 +43,7 @@ class AgentManager:
     def __init__(self):
         self.agents = {}
         self.current_agent = None
-        self.models_dir = os.path.join(MODEL_DIR, "sac")
+        self.models_dir = os.path.join(MODEL_DIR, "sac", "agents")
         os.makedirs(self.models_dir, exist_ok=True)
     
     def list_available_agents(self):
@@ -69,25 +69,45 @@ class AgentManager:
             # Try to load metadata for more info
             if agent_info['has_metadata']:
                 try:
-                    with open(info_file, 'rb') as f:
-                        metadata = pickle.load(f)
-                    
-                    if isinstance(metadata, dict):
-                        agent_info['grade'] = metadata.get('grade', 'Unknown')
-                        agent_info['config'] = metadata.get('config', {})
-                        agent_info['performance'] = metadata.get('performance_metrics', {})
+                    # Check file size first
+                    if os.path.getsize(info_file) == 0:
+                        print(f"Warning: Empty metadata file for {agent_name}")
+                        agent_info['grade'] = 'Unknown'
+                        agent_info['config'] = {}
+                        agent_info['performance'] = {}
                     else:
-                        agent_info['grade'] = getattr(metadata, 'grade', 'Unknown')
-                        agent_info['config'] = getattr(metadata, 'config', {})
-                        agent_info['performance'] = getattr(metadata, 'performance_metrics', {})
+                        with open(info_file, 'rb') as f:
+                            metadata = pickle.load(f)
+                        
+                        if isinstance(metadata, dict):
+                            agent_info['grade'] = metadata.get('grade', 'Unknown')
+                            agent_info['config'] = metadata.get('config', {})
+                            agent_info['performance'] = metadata.get('performance_metrics', {})
+                        else:
+                            agent_info['grade'] = getattr(metadata, 'grade', 'Unknown')
+                            agent_info['config'] = getattr(metadata, 'config', {})
+                            agent_info['performance'] = getattr(metadata, 'performance_metrics', {})
                         
                 except Exception as e:
-                    print(f"Warning: Could not load metadata for {agent_name}: {e}")
-                    agent_info['grade'] = 'Unknown'
+                    # Try to extract grade from filename as fallback
+                    grade_from_name = 'Unknown'
+                    for grade in ['N', 'D', 'C', 'B', 'A', 'S']:
+                        if f'grade_{grade}' in agent_name or f'_{grade}_' in agent_name:
+                            grade_from_name = grade
+                            break
+                    
+                    agent_info['grade'] = grade_from_name
                     agent_info['config'] = {}
                     agent_info['performance'] = {}
             else:
-                agent_info['grade'] = 'Unknown'
+                # Try to extract grade from filename
+                grade_from_name = 'Unknown'
+                for grade in ['N', 'D', 'C', 'B', 'A', 'S']:
+                    if f'grade_{grade}' in agent_name or f'_{grade}_' in agent_name:
+                        grade_from_name = grade
+                        break
+                
+                agent_info['grade'] = grade_from_name
                 agent_info['config'] = {}
                 agent_info['performance'] = {}
             
@@ -127,6 +147,95 @@ class AgentManager:
         except Exception as e:
             print(f"❌ Failed to save agent: {e}")
             return None
+    
+    def rename_agent(self, old_name, new_name):
+        """เปลี่ยนชื่อ agent"""
+        try:
+            old_zip_path = os.path.join(self.models_dir, f"{old_name}.zip")
+            new_zip_path = os.path.join(self.models_dir, f"{new_name}.zip")
+            
+            old_info_path = os.path.join(self.models_dir, f"{old_name}_info.pkl")
+            new_info_path = os.path.join(self.models_dir, f"{new_name}_info.pkl")
+            
+            old_metadata_path = os.path.join(self.models_dir, f"{old_name}_metadata.json")
+            new_metadata_path = os.path.join(self.models_dir, f"{new_name}_metadata.json")
+            
+            # Check if old files exist
+            if not os.path.exists(old_zip_path):
+                print(f"❌ Agent file not found: {old_name}.zip")
+                return False
+            
+            # Check if new name already exists
+            if os.path.exists(new_zip_path):
+                print(f"❌ Agent with name '{new_name}' already exists")
+                return False
+            
+            # Rename files
+            os.rename(old_zip_path, new_zip_path)
+            print(f"✅ Renamed model file: {old_name}.zip → {new_name}.zip")
+            
+            # Rename info file if exists
+            if os.path.exists(old_info_path):
+                os.rename(old_info_path, new_info_path)
+                print(f"✅ Renamed info file: {old_name}_info.pkl → {new_name}_info.pkl")
+            
+            # Rename metadata file if exists
+            if os.path.exists(old_metadata_path):
+                os.rename(old_metadata_path, new_metadata_path)
+                print(f"✅ Renamed metadata file: {old_name}_metadata.json → {new_name}_metadata.json")
+            
+            # Update current agent if it's the one being renamed
+            if self.current_agent and hasattr(self.current_agent, 'agent_id'):
+                if old_name in str(self.current_agent.agent_id):
+                    print("⚠️ Current agent was renamed. Please reload the agent.")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to rename agent: {e}")
+            return False
+    
+    def delete_agent(self, agent_name):
+        """ลบ agent"""
+        try:
+            zip_path = os.path.join(self.models_dir, f"{agent_name}.zip")
+            info_path = os.path.join(self.models_dir, f"{agent_name}_info.pkl")
+            metadata_path = os.path.join(self.models_dir, f"{agent_name}_metadata.json")
+            
+            # Check if agent exists
+            if not os.path.exists(zip_path):
+                print(f"❌ Agent file not found: {agent_name}.zip")
+                return False
+            
+            deleted_files = []
+            
+            # Delete model file
+            os.remove(zip_path)
+            deleted_files.append(f"{agent_name}.zip")
+            
+            # Delete info file if exists
+            if os.path.exists(info_path):
+                os.remove(info_path)
+                deleted_files.append(f"{agent_name}_info.pkl")
+            
+            # Delete metadata file if exists
+            if os.path.exists(metadata_path):
+                os.remove(metadata_path)
+                deleted_files.append(f"{agent_name}_metadata.json")
+            
+            print(f"✅ Deleted agent files: {', '.join(deleted_files)}")
+            
+            # Clear current agent if it's the one being deleted
+            if self.current_agent and hasattr(self.current_agent, 'agent_id'):
+                if agent_name in str(self.current_agent.agent_id):
+                    self.current_agent = None
+                    print("⚠️ Current agent was deleted and cleared.")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to delete agent: {e}")
+            return False
 
 class DataManager:
     """Manager สำหรับจัดการข้อมูล crypto"""
@@ -282,20 +391,28 @@ class InteractiveCLI:
     def main_menu(self):
         """แสดง main menu"""
         while True:
-            print(f"\n🤖 Current Agent: {self.agent_manager.current_agent.agent_id if self.agent_manager.current_agent else 'None'}")
+            current_agent = self.agent_manager.current_agent
+            if current_agent:
+                print(f"\n🤖 Current Agent: {current_agent.agent_id}")
+                print(f"   🎯 Grade: {current_agent.grade} | 🤖 Algorithm: {getattr(current_agent, 'algorithm', 'SAC')}")
+                print(f"   📊 Status: {'Trained' if current_agent.is_trained else 'Not Trained'}")
+            else:
+                print(f"\n🤖 Current Agent: None")
             print("=" * 60)
             print("1. 🆕 Create New Agent")
             print("2. 📊 Load Existing Agent")
-            print("3. 📈 Load/Download Data")
-            print("4. 🏋️ Train Current Agent")
-            print("5. 🧪 Test Current Agent")
-            print("6. 📊 View Agent Performance")
-            print("7. 🔍 Compare Agents")
-            print("8. 💾 Save Current Agent")
-            print("9. ⚙️ Agent Settings")
+            print("3. ✏️ Rename Agent")
+            print("4. 🗑️ Delete Agent")
+            print("5. 📈 Load/Download Data")
+            print("6. 🏋️ Train Current Agent")
+            print("7. 🧪 Test Current Agent")
+            print("8. 📊 View Agent Performance")
+            print("9. 🔍 Compare Agents")
+            print("10. 💾 Save Current Agent")
+            print("11. ⚙️ Agent Settings")
             print("0. 🚪 Exit")
             
-            choice = input("\n👉 Select option (0-9): ").strip()
+            choice = input("\n👉 Select option (0-11): ").strip()
             
             try:
                 if choice == '1':
@@ -303,18 +420,22 @@ class InteractiveCLI:
                 elif choice == '2':
                     self.load_agent_workflow()
                 elif choice == '3':
-                    self.load_data_workflow()
+                    self.rename_agent_workflow()
                 elif choice == '4':
-                    self.train_agent_workflow()
+                    self.delete_agent_workflow()
                 elif choice == '5':
-                    self.test_agent_workflow()
+                    self.load_data_workflow()
                 elif choice == '6':
-                    self.view_performance_workflow()
+                    self.train_agent_workflow()
                 elif choice == '7':
-                    self.compare_agents_workflow()
+                    self.test_agent_workflow()
                 elif choice == '8':
-                    self.save_agent_workflow()
+                    self.view_performance_workflow()
                 elif choice == '9':
+                    self.compare_agents_workflow()
+                elif choice == '10':
+                    self.save_agent_workflow()
+                elif choice == '11':
                     self.settings_workflow()
                 elif choice == '0':
                     print("👋 Goodbye!")
@@ -386,7 +507,7 @@ class InteractiveCLI:
         
         # Check available feature data
         try:
-            from ..data_feature import get_crypto_feature_summary
+            from src.data_feature import get_crypto_feature_summary
             feature_summary = get_crypto_feature_summary()
             
             if feature_summary['total_files'] > 0:
@@ -476,17 +597,17 @@ class InteractiveCLI:
         try:
             # Import appropriate agent class based on algorithm
             if selected_algorithm == 'SAC':
-                from ..agents.crypto_agent import create_crypto_sac_agent
+                from src.agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             elif selected_algorithm == 'PPO':
                 # For now, use SAC as base - can be extended later
                 print("⚠️ PPO implementation coming soon. Using SAC for now.")
-                from ..agents.crypto_agent import create_crypto_sac_agent
+                from src.agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             else:
                 # For other algorithms, use SAC as fallback
                 print(f"⚠️ {selected_algorithm} implementation coming soon. Using SAC for now.")
-                from ..agents.crypto_agent import create_crypto_sac_agent
+                from src.agents.crypto_agent import create_crypto_sac_agent
                 agent = create_crypto_sac_agent(grade=grade)
             
             # Set additional agent properties
@@ -494,6 +615,22 @@ class InteractiveCLI:
             agent.selected_symbols = selected_symbols
             agent.use_feature_data = use_feature_data
             agent.environment_type = environment_type
+            
+            # Store configuration in metadata for later restoration
+            if hasattr(agent.metadata, 'update') and callable(agent.metadata.update):
+                agent.metadata.update({
+                    'algorithm': selected_algorithm,
+                    'selected_symbols': selected_symbols,
+                    'use_feature_data': use_feature_data,
+                    'environment_type': environment_type
+                })
+            elif isinstance(agent.metadata, dict):
+                agent.metadata.update({
+                    'algorithm': selected_algorithm,
+                    'selected_symbols': selected_symbols,
+                    'use_feature_data': use_feature_data,
+                    'environment_type': environment_type
+                })
             
             self.agent_manager.current_agent = agent
             
@@ -528,45 +665,132 @@ class InteractiveCLI:
                     )
                     training_data = self.data_manager.add_technical_indicators(training_data)
                 
-                if training_data is not None:
+                if training_data is not None and len(training_data) > 0:
                     print(f"✅ Data loaded successfully!")
                     print(f"   📊 Rows: {len(training_data):,}")
                     print(f"   🔢 Features: {len(training_data.columns)}")
+                    print(f"   📈 Symbols: {training_data['tic'].unique()}")
                     print(f"   📅 Date range: {training_data['timestamp'].min()} to {training_data['timestamp'].max()}")
+                    
+                    # Validate data quality
+                    if len(training_data) < 10:
+                        print("⚠️ Warning: Very small dataset. Consider using more data for better training.")
                     
                     # Create environment
                     print("\n🏗️ Creating trading environment...")
-                    if environment_type == 'enhanced':
-                        # Use enhanced environment
-                        from ..environments.enhanced_crypto_env import EnhancedCryptoTradingEnv
-                        train_env, test_env = agent.create_environment(training_data, env_class=EnhancedCryptoTradingEnv)
-                    else:
-                        # Use basic environment
-                        train_env, test_env = agent.create_environment(training_data)
-                    
-                    print("✅ Environment created successfully!")
-                    
-                    # Store data for later use
-                    self.current_data = training_data
+                    try:
+                        if environment_type == 'enhanced':
+                            # Use enhanced environment
+                            try:
+                                from src.environments.enhanced_crypto_env import EnhancedCryptoTradingEnv
+                                train_env, test_env = agent.create_environment(training_data, env_class=EnhancedCryptoTradingEnv)
+                                print(f"✅ Enhanced environment created")
+                            except ImportError:
+                                print("⚠️ Enhanced environment not available. Using basic environment.")
+                                train_env, test_env = agent.create_environment(training_data)
+                                print(f"✅ Basic environment created")
+                        else:
+                            # Use basic environment
+                            try:
+                                from src.agents.crypto_agent import BasicCryptoTradingEnv
+                                train_env, test_env = agent.create_environment(training_data, env_class=BasicCryptoTradingEnv)
+                                print(f"✅ Basic environment created")
+                            except ImportError:
+                                print("⚠️ Basic environment not available. Using enhanced environment.")
+                                train_env, test_env = agent.create_environment(training_data)
+                                print(f"✅ Enhanced environment created (fallback)")
+                        
+                        print("✅ Environment created successfully!")
+                        
+                        # Store data for later use
+                        self.current_data = training_data
+                        
+                    except Exception as env_error:
+                        print(f"❌ Failed to create environment: {env_error}")
+                        print("⚠️ Agent created but environment setup failed.")
                     
                 else:
-                    print("❌ Failed to load training data.")
+                    print("❌ Failed to load training data or data is empty.")
+                    print("⚠️ Agent created but no training data loaded.")
                     
             except Exception as e:
                 print(f"❌ Error loading data: {e}")
         
-        print(f"\n🎉 Agent Creation Completed!")
-        print("💡 Next steps:")
-        print("   4. 🏋️ Train Current Agent")
-        print("   5. 🧪 Test Current Agent")
-        print("   8. 💾 Save Current Agent")
+        # Step 8: Save Agent (ทันทีหลังจากสร้างเสร็จ)
+        print(f"\n💾 Step 8: Save Agent")
+        print("-" * 30)
+        try:
+            # Save agent ทันทีหลังจากสร้างเสร็จ
+            saved_path = agent.save()
+            print(f"✅ Agent saved successfully!")
+            print(f"   📄 Path: {saved_path}")
+            print(f"   🤖 Agent ID: {agent.agent_id}")
+            print(f"   🎯 Grade: {agent.grade}")
+            
+            # Set as current agent
+            self.agent_manager.current_agent = agent
+            
+        except Exception as e:
+            print(f"❌ Error saving agent: {e}")
+            print("⚠️ Agent created but not saved. You can save it manually later.")
         
-        input("\nPress Enter to continue...")
+        print(f"\n🎉 Agent Creation Completed!")
+        print(f"✅ New Agent: {agent.agent_id}")
+        print(f"🎯 Grade: {agent.grade}")
+        print(f"🤖 Algorithm: {selected_algorithm}")
+        print(f"📊 Data: {len(selected_symbols)} symbol(s)")
+        print(f"💾 Status: Saved and ready for training")
+        
+        print("\n💡 What would you like to do next?")
+        print("   1. 🏋️ Train Agent Now (Recommended)")
+        print("   2. ⚙️ Agent Settings")
+        print("   0. 📋 Back to Main Menu")
+        
+        while True:
+            choice = input(f"\n👉 Select option (0-2) [1]: ").strip() or '1'
+            if choice == '1':
+                # GPU check before training
+                try:
+                    from config.config import GPU_AVAILABLE, DEVICE
+                    
+                    if not GPU_AVAILABLE:
+                        print("\n❌ GPU is required for training but not available!")
+                        print("💡 Please ensure:")
+                        print("   1. NVIDIA GPU is installed")
+                        print("   2. CUDA drivers are installed")
+                        print("   3. PyTorch with CUDA support is installed")
+                        print("   4. GPU has sufficient memory")
+                        print("\n🚫 Training skipped due to missing GPU")
+                        input("Press Enter to continue...")
+                        break
+                    
+                    print(f"✅ GPU check passed: {DEVICE}")
+                    print(f"\n🚀 Starting training for {agent.agent_id}...")
+                    self.train_agent_workflow()
+                    break
+                    
+                except Exception as e:
+                    print(f"\n❌ GPU check failed: {e}")
+                    print("🚫 Training skipped")
+                    input("Press Enter to continue...")
+                    break
+                    
+            elif choice == '2':
+                print(f"\n⚙️ Agent settings for {agent.agent_id}...")
+                self.settings_workflow()
+                break
+            elif choice == '0':
+                print("📋 Returning to main menu...")
+                input("Press Enter to continue...")
+                break
+            else:
+                print("❌ Invalid choice. Please try again.")
     
     def _load_feature_data_for_symbols(self, symbols):
         """Helper function to load feature data for selected symbols"""
         try:
-            from ..data_feature import CryptoFeatureProcessor
+            import pandas as pd
+            from src.data_feature import CryptoFeatureProcessor
             processor = CryptoFeatureProcessor()
             
             # Get available feature files
@@ -661,11 +885,262 @@ class InteractiveCLI:
                 print(f"   🤖 ID: {loaded_agent.agent_id}")
                 print(f"   🎯 Grade: {loaded_agent.grade}")
                 print(f"   📊 Trained: {'Yes' if loaded_agent.is_trained else 'No'}")
+                
+                # ตรวจสอบและ restore data + environment
+                print(f"\n🔄 Restoring agent data and environment...")
+                
+                # Get agent configuration from metadata
+                if hasattr(loaded_agent, 'selected_symbols') and loaded_agent.selected_symbols:
+                    symbols = loaded_agent.selected_symbols
+                elif hasattr(loaded_agent, 'metadata') and isinstance(loaded_agent.metadata, dict):
+                    symbols = loaded_agent.metadata.get('selected_symbols', ['BTC_USD'])
+                else:
+                    symbols = ['BTC_USD']  # Default fallback
+                
+                use_feature_data = getattr(loaded_agent, 'use_feature_data', True)
+                environment_type = getattr(loaded_agent, 'environment_type', 'basic')
+                
+                print(f"   📊 Symbols: {symbols}")
+                print(f"   💾 Data Type: {'Feature' if use_feature_data else 'Basic'}")
+                print(f"   🏗️ Environment: {environment_type}")
+                
+                # Load data for the agent
+                try:
+                    if use_feature_data:
+                        # Load feature data
+                        training_data = self._load_feature_data_for_symbols(symbols)
+                    else:
+                        # Load basic data
+                        training_data = self.data_manager.load_crypto_data(
+                            symbols=symbols,
+                            force_download=False
+                        )
+                        training_data = self.data_manager.add_technical_indicators(training_data)
+                    
+                    if training_data is not None and len(training_data) > 0:
+                        print(f"   ✅ Data loaded: {len(training_data)} rows, {len(training_data.columns)} features")
+                        
+                        # Store data for training
+                        self.current_data = training_data
+                        
+                        # Create environment if agent is not trained yet
+                        if not loaded_agent.is_trained:
+                            print(f"   🏗️ Creating environment for training...")
+                            try:
+                                if environment_type == 'enhanced':
+                                    try:
+                                        from src.environments.enhanced_crypto_env import EnhancedCryptoTradingEnv
+                                        train_env, test_env = loaded_agent.create_environment(training_data, env_class=EnhancedCryptoTradingEnv)
+                                        print(f"   ✅ Enhanced environment created")
+                                    except ImportError:
+                                        train_env, test_env = loaded_agent.create_environment(training_data)
+                                        print(f"   ✅ Basic environment created (fallback)")
+                                else:
+                                    try:
+                                        from src.agents.crypto_agent import BasicCryptoTradingEnv
+                                        train_env, test_env = loaded_agent.create_environment(training_data, env_class=BasicCryptoTradingEnv)
+                                        print(f"   ✅ Basic environment created")
+                                    except ImportError:
+                                        train_env, test_env = loaded_agent.create_environment(training_data)
+                                        print(f"   ✅ Environment created (fallback)")
+                                
+                                print(f"   ✅ Agent ready for training!")
+                                
+                            except Exception as env_error:
+                                print(f"   ⚠️ Environment creation failed: {env_error}")
+                                print(f"   💡 You can still train, environment will be created automatically")
+                        else:
+                            print(f"   ℹ️ Agent is already trained")
+                            
+                    else:
+                        print(f"   ❌ Failed to load data")
+                        print(f"   💡 You may need to load data manually before training")
+                        
+                except Exception as data_error:
+                    print(f"   ⚠️ Data loading failed: {data_error}")
+                    print(f"   💡 You may need to load data manually before training")
+                
+                print(f"\n🎉 Agent restore completed!")
+                print(f"   🤖 Current Agent: {loaded_agent.agent_id}")
+                print(f"   🎯 Status: {'Ready for testing' if loaded_agent.is_trained else 'Ready for training'}")
+                
             else:
                 print("❌ Failed to load agent.")
         
         except Exception as e:
             print(f"❌ Error loading agent: {e}")
+        
+        input("\nPress Enter to continue...")
+    
+    def rename_agent_workflow(self):
+        """Workflow สำหรับเปลี่ยนชื่อ agent"""
+        print("\n✏️ Rename Agent")
+        print("-" * 30)
+        
+        agents = self.agent_manager.list_available_agents()
+        
+        if not agents:
+            print("❌ No saved agents found.")
+            input("Press Enter to continue...")
+            return
+        
+        print(f"📋 Available Agents ({len(agents)}):")
+        for i, agent in enumerate(agents, 1):
+            status = "✅" if agent['has_metadata'] else "⚠️"
+            grade = agent['grade']
+            date = agent['created_date'].strftime('%Y-%m-%d %H:%M')
+            
+            print(f"  {i}. {status} {agent['name']}")
+            print(f"     Grade: {grade} | Created: {date}")
+        
+        # Select agent to rename
+        while True:
+            try:
+                choice = input(f"\n👉 Select agent to rename (1-{len(agents)}) or 0 to cancel: ").strip()
+                if choice == '0':
+                    return
+                
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(agents):
+                    break
+                else:
+                    print("❌ Invalid selection.")
+            except ValueError:
+                print("❌ Please enter a number.")
+        
+        selected_agent = agents[choice_idx]
+        old_name = selected_agent['name']
+        
+        print(f"\n📝 Renaming Agent: {old_name}")
+        
+        # Get new name
+        while True:
+            new_name = input("👉 Enter new name: ").strip()
+            if not new_name:
+                print("❌ Name cannot be empty.")
+                continue
+            
+            # Check for invalid characters
+            invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+            if any(char in new_name for char in invalid_chars):
+                print(f"❌ Name contains invalid characters: {invalid_chars}")
+                continue
+            
+            # Check if name already exists
+            existing_names = [agent['name'] for agent in agents]
+            if new_name in existing_names:
+                print("❌ Agent with this name already exists.")
+                continue
+            
+            break
+        
+        # Confirm rename
+        print(f"\n🔄 Rename Confirmation:")
+        print(f"   Old Name: {old_name}")
+        print(f"   New Name: {new_name}")
+        
+        confirm = input("\n❓ Confirm rename? (y/N): ").strip().lower()
+        if confirm not in ['y', 'yes']:
+            print("❌ Rename cancelled.")
+            input("Press Enter to continue...")
+            return
+        
+        # Perform rename
+        print(f"\n⏳ Renaming agent...")
+        success = self.agent_manager.rename_agent(old_name, new_name)
+        
+        if success:
+            print(f"✅ Agent renamed successfully!")
+            print(f"   {old_name} → {new_name}")
+        else:
+            print("❌ Rename failed.")
+        
+        input("\nPress Enter to continue...")
+    
+    def delete_agent_workflow(self):
+        """Workflow สำหรับลบ agent"""
+        print("\n🗑️ Delete Agent")
+        print("-" * 30)
+        
+        agents = self.agent_manager.list_available_agents()
+        
+        if not agents:
+            print("❌ No saved agents found.")
+            input("Press Enter to continue...")
+            return
+        
+        print(f"📋 Available Agents ({len(agents)}):")
+        for i, agent in enumerate(agents, 1):
+            status = "✅" if agent['has_metadata'] else "⚠️"
+            grade = agent['grade']
+            date = agent['created_date'].strftime('%Y-%m-%d %H:%M')
+            
+            # Calculate file size
+            zip_path = os.path.join(self.agent_manager.models_dir, f"{agent['name']}.zip")
+            file_size = "N/A"
+            if os.path.exists(zip_path):
+                size_bytes = os.path.getsize(zip_path)
+                file_size = f"{size_bytes / (1024*1024):.1f} MB"
+            
+            print(f"  {i}. {status} {agent['name']}")
+            print(f"     Grade: {grade} | Size: {file_size} | Created: {date}")
+            
+            # Show performance if available
+            if agent['performance']:
+                mean_reward = agent['performance'].get('mean_reward')
+                if mean_reward is not None:
+                    print(f"     Performance: {mean_reward:.4f}")
+        
+        # Select agent to delete
+        while True:
+            try:
+                choice = input(f"\n👉 Select agent to delete (1-{len(agents)}) or 0 to cancel: ").strip()
+                if choice == '0':
+                    return
+                
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(agents):
+                    break
+                else:
+                    print("❌ Invalid selection.")
+            except ValueError:
+                print("❌ Please enter a number.")
+        
+        selected_agent = agents[choice_idx]
+        agent_name = selected_agent['name']
+        
+        print(f"\n⚠️ Delete Confirmation:")
+        print(f"   Agent: {agent_name}")
+        print(f"   Grade: {selected_agent['grade']}")
+        print(f"   Created: {selected_agent['created_date'].strftime('%Y-%m-%d %H:%M')}")
+        print(f"\n🚨 WARNING: This action cannot be undone!")
+        print("   All associated files will be permanently deleted:")
+        print(f"   - {agent_name}.zip")
+        print(f"   - {agent_name}_info.pkl (if exists)")
+        print(f"   - {agent_name}_metadata.json (if exists)")
+        
+        # Double confirmation
+        confirm1 = input(f"\n❓ Are you sure you want to delete '{agent_name}'? (y/N): ").strip().lower()
+        if confirm1 not in ['y', 'yes']:
+            print("❌ Deletion cancelled.")
+            input("Press Enter to continue...")
+            return
+        
+        confirm2 = input(f"❓ Type 'DELETE' to confirm permanent deletion: ").strip()
+        if confirm2 != 'DELETE':
+            print("❌ Deletion cancelled.")
+            input("Press Enter to continue...")
+            return
+        
+        # Perform deletion
+        print(f"\n⏳ Deleting agent...")
+        success = self.agent_manager.delete_agent(agent_name)
+        
+        if success:
+            print(f"✅ Agent deleted successfully!")
+            print(f"   Removed: {agent_name}")
+        else:
+            print("❌ Deletion failed.")
         
         input("\nPress Enter to continue...")
     
@@ -730,30 +1205,84 @@ class InteractiveCLI:
             return
         
         if self.current_data is None:
-            print("❌ No data loaded. Please load data first.")
-            input("Press Enter to continue...")
-            return
+            print("⚠️ No data loaded. Attempting to restore data from agent metadata...")
+            
+            # Try to restore data from agent metadata
+            agent = self.agent_manager.current_agent
+            try:
+                # Get symbols from agent metadata
+                if hasattr(agent, 'selected_symbols') and agent.selected_symbols:
+                    symbols = agent.selected_symbols
+                elif hasattr(agent, 'metadata') and isinstance(agent.metadata, dict):
+                    symbols = agent.metadata.get('selected_symbols', ['BTC_USD'])
+                else:
+                    symbols = ['BTC_USD']
+                
+                use_feature_data = getattr(agent, 'use_feature_data', True)
+                
+                print(f"   📊 Restoring data for symbols: {symbols}")
+                print(f"   💾 Data type: {'Feature' if use_feature_data else 'Basic'}")
+                
+                # Load data
+                if use_feature_data:
+                    training_data = self._load_feature_data_for_symbols(symbols)
+                else:
+                    training_data = self.data_manager.load_crypto_data(symbols=symbols)
+                    training_data = self.data_manager.add_technical_indicators(training_data)
+                
+                if training_data is not None and len(training_data) > 0:
+                    self.current_data = training_data
+                    print(f"   ✅ Data restored: {len(training_data)} rows")
+                else:
+                    print("❌ Failed to restore data. Please load data manually first.")
+                    input("Press Enter to continue...")
+                    return
+                    
+            except Exception as e:
+                print(f"❌ Failed to restore data: {e}")
+                print("💡 Please load data manually first.")
+                input("Press Enter to continue...")
+                return
         
         print("\n🏋️ Train SAC Agent")
         print("-" * 30)
         
+        # GPU requirement check
+        try:
+            from config.config import GPU_AVAILABLE, DEVICE
+            
+            if not GPU_AVAILABLE:
+                print("❌ GPU is required for training but not available!")
+                print("💡 Please ensure:")
+                print("   1. NVIDIA GPU is installed")
+                print("   2. CUDA drivers are installed")
+                print("   3. PyTorch with CUDA support is installed")
+                print("   4. GPU has sufficient memory")
+                print("\n🚫 Training aborted due to missing GPU")
+                input("Press Enter to continue...")
+                return
+            
+            print(f"✅ GPU check passed: {DEVICE}")
+            
+        except Exception as e:
+            print(f"❌ GPU check failed: {e}")
+            print("🚫 Training aborted")
+            input("Press Enter to continue...")
+            return
+        
         agent = self.agent_manager.current_agent
         print(f"🤖 Agent: {agent.agent_id}")
         print(f"🎯 Grade: {agent.grade}")
-        print(f"⚙️ Default timesteps: {agent.config['total_timesteps']:,}")
         
-        # Custom timesteps option
-        custom_timesteps = input(f"🔢 Custom timesteps (or Enter for default): ").strip()
-        timesteps = None
-        if custom_timesteps:
-            try:
-                timesteps = int(custom_timesteps)
-            except ValueError:
-                print("⚠️ Invalid input. Using default timesteps.")
+        # Use default timesteps from config
+        timesteps = agent.config['total_timesteps']
+        print(f"⚙️ Training timesteps: {timesteps:,}")
         
         try:
-            print("\n⏳ Creating trading environment...")
-            train_env, test_env = agent.create_environment(self.current_data)
+            # Environment should already be created in create_agent_workflow
+            if agent.env is None:
+                print("⏳ Creating trading environment...")
+                train_env, test_env = agent.create_environment(self.current_data)
             
             print("\n🚀 Starting training...")
             print("⚠️ This may take several minutes depending on the grade...")
@@ -767,6 +1296,7 @@ class InteractiveCLI:
             save_now = input("\n💾 Save agent now? (y/n) [y]: ").strip().lower()
             if save_now != 'n':
                 self.agent_manager.save_current_agent()
+                print("✅ Agent saved successfully!")
             
         except Exception as e:
             print(f"❌ Training failed: {e}")
