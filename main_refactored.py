@@ -66,6 +66,20 @@ Grades:
     )
     
     parser.add_argument(
+        '--algorithm', 
+        choices=['SAC', 'PPO', 'DDPG', 'TD3', 'A2C'], 
+        default='SAC',
+        help='RL algorithm to use (default: SAC)'
+    )
+    
+    parser.add_argument(
+        '--environment', 
+        choices=['basic', 'enhanced'], 
+        default='enhanced',
+        help='Environment type (default: enhanced)'
+    )
+    
+    parser.add_argument(
         '--agent-id',
         help='Agent ID for loading/testing (required for test mode)'
     )
@@ -170,11 +184,14 @@ def interactive_mode(verbose=1):
     except Exception as e:
         print(f"❌ Interactive mode error: {e}")
 
-def train_mode(grade='C', timesteps=None, symbols=None, force_download=False, 
-               save_path=None, verbose=1):
+def train_mode(grade='C', algorithm='SAC', environment='enhanced', timesteps=None, 
+               symbols=None, force_download=False, save_path=None, verbose=1):
     """Direct training mode"""
     if verbose >= 1:
-        print(f"\n🏋️ Starting Training Mode (Grade {grade})...")
+        print(f"\n🏋️ Starting Training Mode")
+        print(f"   🤖 Algorithm: {algorithm}")
+        print(f"   🎯 Grade: {grade}")
+        print(f"   🏗️ Environment: {environment}")
     
     try:
         # Load data
@@ -182,22 +199,48 @@ def train_mode(grade='C', timesteps=None, symbols=None, force_download=False,
         if data is None:
             return False
         
-        # Create agent
+        # Create agent based on algorithm
         if verbose >= 1:
-            print(f"\n🤖 Creating SAC Agent (Grade {grade})...")
+            print(f"\n🤖 Creating {algorithm} Agent (Grade {grade})...")
         
-        agent = create_crypto_sac_agent(grade=grade)
+        if algorithm == 'SAC':
+            agent = create_crypto_sac_agent(grade=grade)
+        elif algorithm == 'PPO':
+            # For now, use SAC as base - can be extended later
+            if verbose >= 1:
+                print("⚠️ PPO implementation coming soon. Using SAC for now.")
+            agent = create_crypto_sac_agent(grade=grade)
+        else:
+            # For other algorithms, use SAC as fallback
+            if verbose >= 1:
+                print(f"⚠️ {algorithm} implementation coming soon. Using SAC for now.")
+            agent = create_crypto_sac_agent(grade=grade)
+        
+        # Set additional agent properties
+        agent.algorithm = algorithm
+        agent.environment_type = environment
         
         if verbose >= 1:
             print(f"   ID: {agent.agent_id}")
             print(f"   Timesteps: {agent.config['total_timesteps']:,}")
             print(f"   Buffer Size: {agent.config['buffer_size']:,}")
         
-        # Create environment
+        # Create environment based on type
         if verbose >= 1:
-            print("\n🏗️ Creating trading environment...")
+            print(f"\n🏗️ Creating {environment} trading environment...")
         
-        train_env, test_env = agent.create_environment(data)
+        if environment == 'enhanced':
+            # Use enhanced environment
+            try:
+                from enhanced_crypto_env import EnhancedCryptoTradingEnv
+                train_env, test_env = agent.create_environment(data, env_class=EnhancedCryptoTradingEnv)
+            except ImportError:
+                if verbose >= 1:
+                    print("⚠️ Enhanced environment not available. Using basic environment.")
+                train_env, test_env = agent.create_environment(data)
+        else:
+            # Use basic environment
+            train_env, test_env = agent.create_environment(data)
         
         # Train agent
         if verbose >= 1:
@@ -216,6 +259,8 @@ def train_mode(grade='C', timesteps=None, symbols=None, force_download=False,
             print(f"✅ Training completed successfully!")
             print(f"   📄 Saved to: {saved_path}")
             print(f"   🤖 Agent ID: {agent.agent_id}")
+            print(f"   🎯 Algorithm: {algorithm}")
+            print(f"   🏗️ Environment: {environment}")
         
         # Quick evaluation
         if verbose >= 1:
@@ -425,6 +470,8 @@ def main():
         elif args.mode == 'train':
             success = train_mode(
                 grade=args.grade,
+                algorithm=args.algorithm,
+                environment=args.environment,
                 timesteps=args.timesteps,
                 symbols=args.symbols,
                 force_download=args.force_download,

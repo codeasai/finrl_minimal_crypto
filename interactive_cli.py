@@ -330,24 +330,47 @@ class InteractiveCLI:
                 input("Press Enter to continue...")
     
     def create_agent_workflow(self):
-        """Workflow สำหรับสร้าง agent ใหม่"""
-        print("\n🆕 Create New SAC Agent")
-        print("-" * 30)
+        """Workflow สำหรับสร้าง agent ใหม่ - Enhanced Version"""
+        print("\n🆕 Create New RL Agent")
+        print("=" * 50)
         
-        # Grade selection
-        print("📊 Available Grades:")
-        grades = ['N', 'D', 'C', 'B', 'A', 'S']
-        descriptions = {
-            'N': 'Novice - Basic learning (50K timesteps)',
-            'D': 'Developing - Improved parameters (100K timesteps)',
-            'C': 'Competent - Professional setup (200K timesteps)',
-            'B': 'Proficient - High performance (500K timesteps)',
-            'A': 'Advanced - Research grade (1M timesteps)',
-            'S': 'Supreme - State-of-the-art (2M timesteps)'
+        # Step 1: Algorithm Selection
+        print("🤖 Step 1: Select Algorithm")
+        print("-" * 30)
+        algorithms = {
+            '1': {'name': 'SAC', 'description': 'Soft Actor-Critic (Recommended for continuous actions)'},
+            '2': {'name': 'PPO', 'description': 'Proximal Policy Optimization (Stable, good baseline)'},
+            '3': {'name': 'DDPG', 'description': 'Deep Deterministic Policy Gradient (Deterministic)'},
+            '4': {'name': 'TD3', 'description': 'Twin Delayed Deep Deterministic (Improved DDPG)'},
+            '5': {'name': 'A2C', 'description': 'Advantage Actor-Critic (Fast training)'}
         }
         
-        for grade in grades:
-            print(f"  {grade}: {descriptions[grade]}")
+        for key, algo in algorithms.items():
+            print(f"  {key}. {algo['name']} - {algo['description']}")
+        
+        while True:
+            algo_choice = input("\n👉 Select algorithm (1-5) [1]: ").strip() or '1'
+            if algo_choice in algorithms:
+                selected_algorithm = algorithms[algo_choice]['name']
+                break
+            print("❌ Invalid choice. Please try again.")
+        
+        print(f"✅ Selected Algorithm: {selected_algorithm}")
+        
+        # Step 2: Grade Selection
+        print(f"\n🎯 Step 2: Select Agent Grade")
+        print("-" * 30)
+        grades = {
+            'N': {'name': 'Novice', 'timesteps': '50K', 'description': 'Basic learning, fast training'},
+            'D': {'name': 'Developing', 'timesteps': '100K', 'description': 'Improved parameters, balanced'},
+            'C': {'name': 'Competent', 'timesteps': '200K', 'description': 'Professional setup, recommended'},
+            'B': {'name': 'Proficient', 'timesteps': '500K', 'description': 'High performance, longer training'},
+            'A': {'name': 'Advanced', 'timesteps': '1M', 'description': 'Research grade, excellent results'},
+            'S': {'name': 'Supreme', 'timesteps': '2M', 'description': 'State-of-the-art, maximum performance'}
+        }
+        
+        for grade, info in grades.items():
+            print(f"  {grade}: {info['name']} ({info['timesteps']}) - {info['description']}")
         
         while True:
             grade = input("\n👉 Select grade (N/D/C/B/A/S) [C]: ").strip().upper() or 'C'
@@ -355,35 +378,126 @@ class InteractiveCLI:
                 break
             print("❌ Invalid grade. Please try again.")
         
-        # Custom configuration option
-        use_custom = input("🔧 Use custom configuration? (y/n) [n]: ").strip().lower()
-        custom_config = None
+        print(f"✅ Selected Grade: {grade} ({grades[grade]['name']})")
         
-        if use_custom in ['y', 'yes']:
-            print("\n⚙️ Custom Configuration (press Enter to skip):")
-            try:
-                timesteps = input("  Total timesteps: ").strip()
-                buffer_size = input("  Buffer size: ").strip()
-                learning_rate = input("  Learning rate: ").strip()
-                
-                custom_config = {}
-                if timesteps:
-                    custom_config['total_timesteps'] = int(timesteps)
-                if buffer_size:
-                    custom_config['buffer_size'] = int(buffer_size)
-                if learning_rate:
-                    custom_config['learning_rate'] = float(learning_rate)
-                    
-            except ValueError:
-                print("⚠️ Invalid input. Using default configuration.")
-                custom_config = None
+        # Step 3: Data Selection
+        print(f"\n📊 Step 3: Select Training Data")
+        print("-" * 30)
         
-        # Create agent
+        # Check available feature data
         try:
-            agent = create_crypto_sac_agent(grade=grade, config=custom_config)
+            from src.data_feature import get_crypto_feature_summary
+            feature_summary = get_crypto_feature_summary()
+            
+            if feature_summary['total_files'] > 0:
+                print(f"📁 Available Feature Data:")
+                print(f"   Files: {feature_summary['total_files']}")
+                print(f"   Symbols: {feature_summary['symbols']}")
+                print(f"   Average Features: {feature_summary['average_features']}")
+                print(f"   Total Size: {feature_summary['total_size_mb']} MB")
+                
+                # Symbol selection
+                available_symbols = feature_summary['symbols']
+                print(f"\n🎯 Available Symbols:")
+                for i, symbol in enumerate(available_symbols, 1):
+                    print(f"  {i}. {symbol}")
+                print(f"  {len(available_symbols)+1}. All symbols")
+                
+                while True:
+                    try:
+                        symbol_choice = input(f"\n👉 Select symbol (1-{len(available_symbols)+1}) [All]: ").strip()
+                        if not symbol_choice or symbol_choice == str(len(available_symbols)+1):
+                            selected_symbols = available_symbols
+                            break
+                        
+                        choice_idx = int(symbol_choice) - 1
+                        if 0 <= choice_idx < len(available_symbols):
+                            selected_symbols = [available_symbols[choice_idx]]
+                            break
+                        else:
+                            print("❌ Invalid selection.")
+                    except ValueError:
+                        print("❌ Please enter a number.")
+                
+                print(f"✅ Selected Symbols: {selected_symbols}")
+                use_feature_data = True
+                
+            else:
+                print("⚠️ No feature data found. Will use basic data with technical indicators.")
+                selected_symbols = CRYPTO_SYMBOLS
+                use_feature_data = False
+                
+        except Exception as e:
+            print(f"⚠️ Could not load feature data: {e}")
+            print("Will use basic data with technical indicators.")
+            selected_symbols = CRYPTO_SYMBOLS
+            use_feature_data = False
+        
+        # Step 4: Environment Type Selection
+        print(f"\n🏗️ Step 4: Select Environment Type")
+        print("-" * 30)
+        env_types = {
+            '1': {'name': 'Basic', 'description': 'Simple trading environment, fast training'},
+            '2': {'name': 'Enhanced', 'description': 'Advanced features, risk management, better performance'}
+        }
+        
+        for key, env in env_types.items():
+            print(f"  {key}. {env['name']} - {env['description']}")
+        
+        while True:
+            env_choice = input("\n👉 Select environment (1-2) [2]: ").strip() or '2'
+            if env_choice in env_types:
+                environment_type = env_types[env_choice]['name'].lower()
+                break
+            print("❌ Invalid choice. Please try again.")
+        
+        print(f"✅ Selected Environment: {env_types[env_choice]['name']}")
+        
+        # Step 5: Configuration Summary & Confirmation
+        print(f"\n📋 Step 5: Configuration Summary")
+        print("=" * 50)
+        print(f"🤖 Algorithm: {selected_algorithm}")
+        print(f"🎯 Grade: {grade} ({grades[grade]['name']})")
+        print(f"📊 Symbols: {selected_symbols}")
+        print(f"💾 Data Type: {'Feature Data (151 features)' if use_feature_data else 'Basic Data (12 indicators)'}")
+        print(f"🏗️ Environment: {env_types[env_choice]['name']}")
+        print(f"⏱️ Estimated Training Time: {grades[grade]['timesteps']} timesteps")
+        
+        confirm = input(f"\n✅ Create agent with these settings? (y/n) [y]: ").strip().lower()
+        if confirm in ['n', 'no']:
+            print("❌ Agent creation cancelled.")
+            input("Press Enter to continue...")
+            return
+        
+        # Step 6: Create Agent
+        print(f"\n🚀 Step 6: Creating Agent...")
+        print("-" * 30)
+        
+        try:
+            # Import appropriate agent class based on algorithm
+            if selected_algorithm == 'SAC':
+                from crypto_agent import create_crypto_sac_agent
+                agent = create_crypto_sac_agent(grade=grade)
+            elif selected_algorithm == 'PPO':
+                # For now, use SAC as base - can be extended later
+                print("⚠️ PPO implementation coming soon. Using SAC for now.")
+                from crypto_agent import create_crypto_sac_agent
+                agent = create_crypto_sac_agent(grade=grade)
+            else:
+                # For other algorithms, use SAC as fallback
+                print(f"⚠️ {selected_algorithm} implementation coming soon. Using SAC for now.")
+                from crypto_agent import create_crypto_sac_agent
+                agent = create_crypto_sac_agent(grade=grade)
+            
+            # Set additional agent properties
+            agent.algorithm = selected_algorithm
+            agent.selected_symbols = selected_symbols
+            agent.use_feature_data = use_feature_data
+            agent.environment_type = environment_type
+            
             self.agent_manager.current_agent = agent
             
-            print(f"\n✅ Created SAC Agent!")
+            print(f"✅ Agent Created Successfully!")
             print(f"   🤖 ID: {agent.agent_id}")
             print(f"   🎯 Grade: {grade}")
             print(f"   ⚙️ Timesteps: {agent.config['total_timesteps']:,}")
@@ -391,8 +505,109 @@ class InteractiveCLI:
             
         except Exception as e:
             print(f"❌ Failed to create agent: {e}")
+            input("Press Enter to continue...")
+            return
+        
+        # Step 7: Load Data Option
+        print(f"\n📊 Step 7: Load Training Data")
+        print("-" * 30)
+        
+        load_data_now = input("📥 Load training data now? (y/n) [y]: ").strip().lower()
+        if load_data_now != 'n':
+            try:
+                print("⏳ Loading training data...")
+                
+                if use_feature_data:
+                    # Load feature data
+                    training_data = self._load_feature_data_for_symbols(selected_symbols)
+                else:
+                    # Load basic data
+                    training_data = self.data_manager.load_crypto_data(
+                        symbols=selected_symbols,
+                        force_download=False
+                    )
+                    training_data = self.data_manager.add_technical_indicators(training_data)
+                
+                if training_data is not None:
+                    print(f"✅ Data loaded successfully!")
+                    print(f"   📊 Rows: {len(training_data):,}")
+                    print(f"   🔢 Features: {len(training_data.columns)}")
+                    print(f"   📅 Date range: {training_data['timestamp'].min()} to {training_data['timestamp'].max()}")
+                    
+                    # Create environment
+                    print("\n🏗️ Creating trading environment...")
+                    if environment_type == 'enhanced':
+                        # Use enhanced environment
+                        from enhanced_crypto_env import EnhancedCryptoTradingEnv
+                        train_env, test_env = agent.create_environment(training_data, env_class=EnhancedCryptoTradingEnv)
+                    else:
+                        # Use basic environment
+                        train_env, test_env = agent.create_environment(training_data)
+                    
+                    print("✅ Environment created successfully!")
+                    
+                    # Store data for later use
+                    self.current_data = training_data
+                    
+                else:
+                    print("❌ Failed to load training data.")
+                    
+            except Exception as e:
+                print(f"❌ Error loading data: {e}")
+        
+        print(f"\n🎉 Agent Creation Completed!")
+        print("💡 Next steps:")
+        print("   4. 🏋️ Train Current Agent")
+        print("   5. 🧪 Test Current Agent")
+        print("   8. 💾 Save Current Agent")
         
         input("\nPress Enter to continue...")
+    
+    def _load_feature_data_for_symbols(self, symbols):
+        """Helper function to load feature data for selected symbols"""
+        try:
+            from src.data_feature import CryptoFeatureProcessor
+            processor = CryptoFeatureProcessor()
+            
+            # Get available feature files
+            available_files = processor.list_available_feature_data()
+            
+            # Filter files for selected symbols
+            matching_files = []
+            for file_info in available_files:
+                if file_info['symbol'] in symbols:
+                    matching_files.append(file_info)
+            
+            if not matching_files:
+                print(f"❌ No feature files found for symbols: {symbols}")
+                return None
+            
+            # Load and combine data
+            combined_data = []
+            for file_info in matching_files:
+                file_path = file_info['file_path']
+                data = pd.read_csv(file_path)
+                data['timestamp'] = pd.to_datetime(data['timestamp'])
+                
+                # Add tic column if not present
+                if 'tic' not in data.columns:
+                    data['tic'] = file_info['symbol']
+                
+                combined_data.append(data)
+                print(f"   📊 Loaded {file_info['symbol']}: {len(data)} rows, {len(data.columns)} features")
+            
+            # Combine all data
+            if len(combined_data) == 1:
+                final_data = combined_data[0]
+            else:
+                final_data = pd.concat(combined_data, ignore_index=True)
+                final_data = final_data.sort_values(['tic', 'timestamp']).reset_index(drop=True)
+            
+            return final_data
+            
+        except Exception as e:
+            print(f"❌ Error loading feature data: {e}")
+            return None
     
     def load_agent_workflow(self):
         """Workflow สำหรับโหลด agent"""
