@@ -748,20 +748,22 @@ class CryptoSACAgent:
             else:
                 env_type_name = str(env_class)
         
-        # Create environments
-        self.train_env = env_class(
-            df=train_data,
-            grade=self.grade,
-            initial_amount=INITIAL_AMOUNT,
-            transaction_cost_pct=TRANSACTION_COST_PCT
-        )
+        # Create environments - check if environment accepts grade parameter
+        env_kwargs = {
+            'df': train_data,
+            'initial_amount': INITIAL_AMOUNT,
+            'transaction_cost_pct': TRANSACTION_COST_PCT
+        }
         
-        self.test_env = env_class(
-            df=test_data,
-            grade=self.grade,
-            initial_amount=INITIAL_AMOUNT,
-            transaction_cost_pct=TRANSACTION_COST_PCT
-        )
+        # Add grade parameter only for environments that support it
+        if env_class == BasicCryptoTradingEnv:
+            env_kwargs['grade'] = self.grade
+        
+        self.train_env = env_class(**env_kwargs)
+        
+        # Same for test environment
+        env_kwargs['df'] = test_data
+        self.test_env = env_class(**env_kwargs)
         
         # Set primary environment
         self.env = self.train_env

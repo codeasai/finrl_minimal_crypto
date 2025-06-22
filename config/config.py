@@ -15,23 +15,23 @@ CRYPTO_SYMBOLS = ["BTC-USD"]
 END_DATE = datetime.now().strftime('%Y-%m-%d')
 START_DATE = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')  # 2 years of data
 
-# Technical indicators (ใช้ indicators เดียวกับใน main.py - รวม 12 ตัว)
+# Technical indicators (ปรับให้ตรงกับ feature data ที่มี - รวม 12 ตัว)
 INDICATORS = [
     # Moving Averages
     "sma_20",          # Simple Moving Average 20 periods
     "ema_20",          # Exponential Moving Average 20 periods
     
     # Momentum Oscillators
-    "rsi_14",          # Relative Strength Index 14 periods
+    "rsi",             # Relative Strength Index (ใช้ rsi แทน rsi_14)
     
     # Trend Indicators
     "macd",            # MACD Line
     "macd_signal",     # MACD Signal Line
-    "macd_hist",       # MACD Histogram
+    "macd_histogram",  # MACD Histogram (ใช้ macd_histogram แทน macd_hist)
     
     # Volatility Indicators (Bollinger Bands)
     "bb_middle",       # Bollinger Bands Middle Line (SMA 20)
-    "bb_std",          # Bollinger Bands Standard Deviation
+    "bb_width",        # Bollinger Bands Width (แทน bb_std)
     "bb_upper",        # Bollinger Bands Upper Band
     "bb_lower",        # Bollinger Bands Lower Band
     
