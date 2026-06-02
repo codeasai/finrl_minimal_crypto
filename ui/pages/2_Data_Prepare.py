@@ -490,6 +490,19 @@ def data_prepare_ui():
     """UI หลักสำหรับการเตรียมข้อมูล"""
     st.header("🔧 Data Prepare")
     st.markdown("### เตรียมข้อมูลสำหรับการเทรน AI Agent")
+
+    with st.expander("💡 วิธีใช้งาน", expanded=False):
+        st.markdown("""
+**ขั้นตอนที่ 2 จาก 6** — เพิ่ม Technical Indicators ให้ข้อมูล OHLCV
+
+1. เลือกไฟล์จาก **Data Loader** (ไฟล์ใน `data/`)
+2. กด **เพิ่ม Technical Indicators** — ระบบจะเพิ่ม ~30 indicators อัตโนมัติ
+3. กด **Export** เพื่อบันทึกไปยัง `data/data_prepare/`
+4. นำไฟล์ที่ Export ไปใช้ที่หน้า **🎯 Train Agent**
+
+> **สำคัญ:** ต้องใช้ไฟล์จาก `data/data_prepare/` เท่านั้นในการเทรน
+> ดูรายละเอียด indicators ทั้งหมดที่หน้า **📖 Help**
+""")
     
     # ค้นหาไฟล์ข้อมูล
     data_files = find_data_files()

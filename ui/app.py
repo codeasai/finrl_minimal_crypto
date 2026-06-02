@@ -19,20 +19,22 @@ st.title("🧠 Crypto RL Agent Dashboard")
 st.markdown("""
 ## ยินดีต้อนรับสู่ Cryptocurrency RL Trading System
 
-ระบบนี้ช่วยให้คุณสามารถ:
-- 📊 **Data Loading**: โหลดข้อมูล cryptocurrency จาก exchanges ต่างๆ
-- 🔧 **Data Preparation**: เตรียมข้อมูลและเพิ่ม technical indicators
-- 🎯 **Train Agent**: เทรน RL agent สำหรับการเทรด
-- 🧪 **Test Agent**: ทดสอบประสิทธิภาพของ agent
-- 📈 **Evaluate Performance**: วิเคราะห์ผลการเทรดและเปรียบเทียบ
-- ⚙️ **Manage Agents**: จัดการ agents ที่มีอยู่
+ระบบนี้ช่วยให้คุณสร้างและทดสอบ RL trading agent ได้ครบ pipeline โดยไม่ต้องเขียน code
+""")
 
-### 🚀 เริ่มต้นใช้งาน
+st.info("📖 **มือใหม่?** ไปที่หน้า **Help** ในเมนูซ้ายเพื่อดูคำแนะนำทีละขั้นตอน")
 
-1. **เริ่มต้นด้วยการโหลดข้อมูล** ไปที่หน้า "📊 Data Loader"
-2. **เตรียมข้อมูล** ไปที่หน้า "🔧 Data Prepare" 
-3. **เทรน Agent** ไปที่หน้า "🎯 Train Agent"
-4. **ประเมินผล** ไปที่หน้า "📈 Evaluate Performance"
+st.markdown("""
+### 🚀 Pipeline (ทำตามลำดับ)
+
+| ขั้น | หน้า | หน้าที่ |
+|-----|------|--------|
+| 1 | 📊 Data Loader | โหลด OHLCV จาก Binance/Bybit/OKX |
+| 2 | 🔧 Data Prepare | เพิ่ม Technical Indicators |
+| 3 | 🎯 Train Agent | เทรน PPO agent |
+| 4 | 🧪 Test Agent | รัน Backtest |
+| 5 | 📈 Evaluate Performance | วิเคราะห์ผลและเปรียบเทียบ B&H |
+| 6 | ⚙️ Manage Agents | ดู/ลบ models |
 
 ### 📋 System Overview
 """)
