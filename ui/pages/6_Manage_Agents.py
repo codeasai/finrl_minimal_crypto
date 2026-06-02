@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -64,12 +65,31 @@ if not agents_dir.exists():
             info = get_model_info(str(model_file))
             
             if info["exists"]:
+                # อ่าน sidecar metadata ถ้ามี
+                sidecar_path = str(model_file).replace('.zip', '.json')
+                sidecar = None
+                if os.path.exists(sidecar_path):
+                    try:
+                        with open(sidecar_path, encoding='utf-8') as f:
+                            sidecar = json.load(f)
+                    except Exception:
+                        pass
+
                 col1, col2, col3 = st.columns([2, 1, 1])
-                
+
                 with col1:
                     st.write(f"**ชื่อไฟล์:** {model_file.name}")
                     st.write(f"**ขนาด:** {info['size']}")
                     st.write(f"**แก้ไขล่าสุด:** {info['modified']}")
+                    if sidecar:
+                        st.write(f"**Exchange:** {sidecar.get('exchange', 'N/A').upper()} | "
+                                 f"**Grade:** {sidecar.get('grade', 'N/A')} | "
+                                 f"**Steps:** {sidecar.get('total_steps', 'N/A'):,}")
+                        syms = sidecar.get('symbols', [])
+                        if syms:
+                            st.write(f"**Symbols:** {', '.join(syms)}")
+                        if sidecar.get('continued_from'):
+                            st.write(f"**Continued from:** {sidecar['continued_from']}")
                 
                 with col2:
                     if st.button("📋 คัดลอกชื่อ", key=f"copy_{i}"):

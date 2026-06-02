@@ -8,6 +8,8 @@ import random
 import numpy as np
 import warnings
 import json
+import time
+import traceback
 warnings.filterwarnings('ignore')
 
 # เพิ่ม import สำหรับตรวจสอบ GPU
@@ -367,10 +369,233 @@ def show_training_parameters(model_type, exchange, grade):
         "print_verbosity": print_verbosity if 'print_verbosity' in locals() else 2
     }
 
+REQUIRED_INDICATORS = [
+    'sma_20', 'ema_20', 'rsi_14',
+    'macd', 'macd_signal', 'macd_hist',
+    'bb_middle', 'bb_std', 'bb_upper', 'bb_lower',
+    'volume_sma_20', 'volume_ratio'
+]
+
+
+def prepare_df_for_training(df):
+    """
+    แปลง DataFrame จาก Data Prepare ให้พร้อมใช้กับ create_environment.
+    Returns (df_ready, symbols_list, error_or_None)
+    """
+    df = df.copy()
+
+    # rename symbol -> tic
+    if 'symbol' in df.columns and 'tic' not in df.columns:
+        df = df.rename(columns={'symbol': 'tic'})
+
+    if 'tic' not in df.columns:
+        return None, [], "ไม่พบคอลัมน์ 'tic' หรือ 'symbol' ในไฟล์ข้อมูล"
+
+    # derive bb_std ถ้าหาย
+    if 'bb_std' not in df.columns and 'bb_upper' in df.columns and 'bb_middle' in df.columns:
+        df['bb_std'] = (df['bb_upper'] - df['bb_middle']) / 2
+
+    missing = [col for col in REQUIRED_INDICATORS if col not in df.columns]
+    if missing:
+        return None, [], (
+            f"ขาด indicators ที่จำเป็น: {', '.join(missing)}\n"
+            "กรุณา Re-run หน้า Data Prepare เพื่อเพิ่ม indicators ให้ครบ"
+        )
+
+    keep_cols = ['timestamp', 'tic', 'open', 'high', 'low', 'close', 'volume'] + REQUIRED_INDICATORS
+    df = df[[c for c in keep_cols if c in df.columns]]
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    symbols = sorted(df['tic'].unique().tolist())
+    return df, symbols, None
+
+
+def resample_and_index(df, indicators):
+    """
+    Resample intraday -> daily (1 row/symbol/day) แล้วตั้ง day-based index
+    ที่ FinRL StockTradingEnv ต้องการ (df.loc[day] ต้องได้ DataFrame)
+    """
+    df = df.copy()
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['date'] = df['timestamp'].dt.strftime('%Y-%m-%d')
+
+    rows_per_day = df.groupby(['date', 'tic']).size().max()
+    if rows_per_day == 1:
+        daily = df.sort_values(['date', 'tic']).reset_index(drop=True)
+    else:
+        agg = {'open': 'first', 'high': 'max', 'low': 'min',
+               'close': 'last', 'volume': 'sum'}
+        for ind in indicators:
+            if ind in df.columns:
+                agg[ind] = 'last'
+        parts = []
+        for tic in df['tic'].unique():
+            sub = df[df['tic'] == tic].set_index('timestamp').sort_index()
+            d = sub.resample('1D').agg(agg).dropna(subset=['close'])
+            d['tic'] = tic
+            d['date'] = d.index.strftime('%Y-%m-%d')
+            parts.append(d.reset_index(drop=True))
+        daily = pd.concat(parts).sort_values(['date', 'tic']).reset_index(drop=True)
+
+    for col in ['open', 'high', 'low', 'close', 'volume'] + indicators:
+        if col in daily.columns:
+            daily[col] = pd.Series(daily[col].values).astype('float64').fillna(0.0)
+    daily = daily.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+
+    # day-based index: df.loc[i] returns DataFrame with all symbols for day i
+    dates = sorted(daily['date'].unique())
+    idx = []
+    for i, d in enumerate(dates):
+        idx.extend([i] * (daily['date'] == d).sum())
+    daily.index = idx
+    return daily, dates
+
+
+def build_env_from_df(df, reward_scaling=1e-3):
+    """
+    สร้าง StockTradingEnv จาก DataFrame ที่ผ่าน prepare_df_for_training แล้ว
+    ใช้ symbols จากข้อมูลจริง รองรับทั้ง daily และ intraday
+    Returns (train_env, test_env, train_df, test_df)
+    """
+    from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
+    from config import HMAX, INITIAL_AMOUNT, TRANSACTION_COST_PCT
+
+    indicators = REQUIRED_INDICATORS
+    symbols = sorted(df['tic'].unique().tolist())
+    n = len(symbols)
+
+    daily_df, dates = resample_and_index(df, indicators)
+    split_date = dates[int(len(dates) * 0.8)]
+
+    train_df = daily_df[daily_df['date'] < split_date].copy()
+    test_df  = daily_df[daily_df['date'] >= split_date].copy()
+
+    # reset day-based index แยกสำหรับ train และ test
+    def _reindex(data):
+        ds = sorted(data['date'].unique())
+        idx = []
+        for i, d in enumerate(ds):
+            idx.extend([i] * (data['date'] == d).sum())
+        data = data.copy()
+        data.index = idx
+        return data
+
+    train_df = _reindex(train_df)
+    test_df  = _reindex(test_df)
+
+    env_kwargs = {
+        "hmax": HMAX,
+        "initial_amount": INITIAL_AMOUNT,
+        "num_stock_shares": [0] * n,
+        "buy_cost_pct":  [TRANSACTION_COST_PCT] * n,
+        "sell_cost_pct": [TRANSACTION_COST_PCT] * n,
+        "state_space": 1 + 2 * n + n * len(indicators),
+        "stock_dim": n,
+        "tech_indicator_list": indicators,
+        "action_space": n,
+        "reward_scaling": reward_scaling,
+        "print_verbosity": 1,
+    }
+
+    train_env = StockTradingEnv(df=train_df, **env_kwargs)
+    test_env  = StockTradingEnv(df=test_df,  **env_kwargs)
+    return train_env, test_env, train_df, test_df
+
+
+def run_training(train_env, params, model_type, model_name, existing_model_path=None):
+    """
+    เทรน (หรือเทรนต่อ) PPO agent และบันทึก .zip
+    Returns (trained_model, save_path_without_extension)
+    """
+    import torch
+    from finrl.agents.stablebaselines3.models import DRLAgent
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import DummyVecEnv
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = DRLAgent(env=train_env)
+    is_simple = (model_type == "PPO (Simple)")
+
+    ppo_kwargs = {
+        'learning_rate': params['learning_rate'],
+        'n_steps':       params['n_steps'],
+        'batch_size':    params['batch_size'],
+        'gamma':         params['gamma'],
+        'gae_lambda':    params['gae_lambda'],
+        'device':        device,
+    }
+    if not is_simple:
+        ppo_kwargs.update({
+            'n_epochs':   params['n_epochs'],
+            'clip_range': params['clip_range'],
+            'ent_coef':   params['ent_coef'],
+            'vf_coef':    params['vf_coef'],
+        })
+
+    if existing_model_path and os.path.exists(existing_model_path):
+        vec_env = DummyVecEnv([lambda: train_env])
+        model = PPO.load(existing_model_path, env=vec_env, device=device)
+        model.learn(
+            total_timesteps=params['steps'],
+            tb_log_name=f"continue_{model_name}",
+            reset_num_timesteps=False,
+        )
+        trained_model = model
+    else:
+        model = agent.get_model("ppo", model_kwargs=ppo_kwargs)
+        trained_model = agent.train_model(
+            model=model,
+            tb_log_name=model_name,
+            total_timesteps=params['steps'],
+        )
+
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    save_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}")
+    trained_model.save(save_path)
+    return trained_model, save_path
+
+
+def write_sidecar(model_name, agent_name, exchange, grade, model_type,
+                  total_steps, symbols, data_file, continued_from=None):
+    """บันทึก JSON metadata ควบคู่กับ .zip"""
+    meta = {
+        "agent_name":    agent_name,
+        "exchange":      exchange,
+        "grade":         grade,
+        "model_type":    model_type,
+        "training_date": datetime.now().isoformat(timespec='seconds'),
+        "total_steps":   total_steps,
+        "symbols":       symbols,
+        "data_file":     data_file,
+        "continued_from": continued_from,
+    }
+    sidecar_path = os.path.join(MODEL_DIR, f"minimal_crypto_{model_name}.json")
+    with open(sidecar_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+
 def simple_train_agent_ui():
     """UI แบบง่ายสำหรับการเทรน agent"""
     st.header("🎯 Train RL Agent")
-    
+
+    with st.expander("💡 วิธีใช้งาน", expanded=False):
+        st.markdown("""
+**ขั้นตอนที่ 3 จาก 6** — เทรน PPO agent ให้เรียนรู้กลยุทธ์การซื้อขาย
+
+1. เลือก **Training Mode** (Create ใหม่ หรือ Continue จากเดิม)
+2. เลือก **Exchange** และ **Grade** (N = เร็ว/ง่าย → S = นาน/ดีที่สุด)
+3. เลือก **ไฟล์ข้อมูล** จาก `data/data_prepare/` ที่ผ่านขั้นที่ 2 แล้ว
+4. กด **Create Agent** — รอจน status เปลี่ยนเป็น ✅
+
+| Grade | Steps | เวลา (CPU) |
+|-------|-------|-----------|
+| N | 5,000 | ~2 นาที |
+| B | 30,000 | ~15 นาที |
+| S | 100,000 | ~50 นาที |
+
+> ดูตารางเต็มและ troubleshooting ที่หน้า **📖 Help**
+""")
+
     # แสดงข้อมูล GPU
     show_gpu_info()
     
@@ -472,67 +697,130 @@ def simple_train_agent_ui():
     # Get training parameters
     params = show_training_parameters(model_type, exchange, grade)
     
-    # Training button with simplified functionality
+    # ---- Training buttons ----
     if train_mode == "Continue Training":
         start_button = st.button("🚀 Continue Training")
         if start_button:
-            st.info(f"""
-            📋 **การเทรนต่อ:** {model_to_continue}
-            - Model Type: {model_type}
-            - Exchange: {exchange.upper()}
-            - Grade: {grade}
-            - Steps: {params['steps']:,}
-            
-            ⚠️ **หมายเหตุ:** ฟีเจอร์การเทรนอยู่ระหว่างการพัฒนา
-            กรุณาใช้ทางเลือกข้างล่างแทน
-            """)
-    else:
+            # Pre-flight: โหลดและตรวจข้อมูล
+            try:
+                df_raw = pd.read_csv(os.path.join(DATA_DIR, selected_data_file))
+            except Exception as e:
+                st.error(f"❌ อ่านไฟล์ข้อมูลไม่ได้: {e}")
+                return
+
+            df_ready, symbols, err = prepare_df_for_training(df_raw)
+            if err:
+                st.error(f"❌ ข้อมูลไม่พร้อม: {err}")
+                return
+
+            existing_zip = os.path.join(MODEL_DIR, f"minimal_crypto_{model_to_continue}.zip")
+            if not os.path.exists(existing_zip):
+                st.error(f"❌ ไม่พบไฟล์ model: {existing_zip}")
+                return
+
+            t_start = time.time()
+            try:
+                with st.status("กำลังเทรนต่อ agent...", expanded=True) as status:
+                    st.write(f"1/3 สร้าง environment ({len(symbols)} symbols, {len(df_ready):,} แถว)...")
+                    train_env, _, _, _ = build_env_from_df(df_ready, params['reward_scaling'])
+
+                    st.write(f"2/3 เทรนต่อ {params['steps']:,} steps (อาจใช้เวลาหลายนาที)...")
+                    _, save_path = run_training(
+                        train_env, params, model_type, model_to_continue,
+                        existing_model_path=existing_zip
+                    )
+
+                    st.write("3/3 บันทึก metadata...")
+                    write_sidecar(
+                        model_name=model_to_continue,
+                        agent_name=model_to_continue,
+                        exchange=exchange,
+                        grade=grade,
+                        model_type=model_type,
+                        total_steps=params['steps'],
+                        symbols=symbols,
+                        data_file=selected_data_file,
+                        continued_from=model_to_continue,
+                    )
+                    elapsed = time.time() - t_start
+                    status.update(label=f"เทรนต่อสำเร็จ! ({elapsed:.0f} วินาที)", state="complete")
+
+                st.success(f"Agent '{model_to_continue}' เทรนต่อเสร็จแล้ว — {save_path}.zip")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Symbols", ", ".join(symbols))
+                m2.metric("Steps เพิ่ม", f"{params['steps']:,}")
+                m3.metric("เวลาที่ใช้", f"{elapsed:.0f}s")
+                st.balloons()
+
+            except Exception as e:
+                st.error(f"❌ เกิดข้อผิดพลาดระหว่างการเทรน: {e}")
+                with st.expander("รายละเอียด error"):
+                    st.code(traceback.format_exc())
+
+    else:  # Create Agent
         start_button = st.button("🚀 Create Agent")
         if start_button:
-            # สร้างชื่อ agent ใหม่
-            symbol = df['symbol'].unique()[0] if 'symbol' in df.columns else "BTC_USDT"
-            agent_name = f"{symbol.replace('/', '_')}-{model_type}-{random.choice(LINEAGE2_CLASSES)}"
-            
-            st.info(f"""
-            📋 **การสร้าง Agent ใหม่:** {agent_name}
-            - Model Type: {model_type}
-            - Exchange: {exchange.upper()}
-            - Grade: {grade}
-            - Steps: {params['steps']:,}
-            - Data: {selected_data_file}
-            
-            ⚠️ **หมายเหตุ:** ฟีเจอร์การเทรนอยู่ระหว่างการพัฒนา
-            กรุณาใช้ทางเลือกข้างล่างแทน
-            """)
-    
-    st.markdown("---")
-    
-    st.subheader("🔄 ทางเลือกสำหรับการเทรน Agent")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.info("""
-        **📁 ใช้ไฟล์ Python หลัก:**
-        
-        ```bash
-        # เทรน agent แบบง่าย
-        python main.py
-        
-        # เทรน agent แบบขั้นสูง  
-        python simple_advanced_agent.py
-        ```
-        """)
-    
-    with col2:
-        st.info("""
-        **📊 ใช้ Jupyter Notebooks:**
-        
-        - `notebooks/1_data_preparation.ipynb`
-        - `notebooks/2_agent_creation.ipynb`
-        - `notebooks/3_agent_training.ipynb`
-        - `notebooks/4_agent_evaluation.ipynb`
-        """)
+            # Pre-flight: โหลดและตรวจข้อมูล
+            try:
+                df_raw = pd.read_csv(os.path.join(DATA_DIR, selected_data_file))
+            except Exception as e:
+                st.error(f"❌ อ่านไฟล์ข้อมูลไม่ได้: {e}")
+                return
+
+            df_ready, symbols, err = prepare_df_for_training(df_raw)
+            if err:
+                st.error(f"❌ ข้อมูลไม่พร้อม: {err}")
+                return
+
+            symbol_slug = "_".join(s.replace("/", "_") for s in symbols)
+            type_slug   = model_type.replace(" ", "").replace("(", "").replace(")", "")
+            agent_class = random.choice(LINEAGE2_CLASSES)
+            model_name  = f"{symbol_slug}-{type_slug}-{agent_class}"
+
+            t_start = time.time()
+            try:
+                with st.status(f"กำลังสร้าง agent '{model_name}'...", expanded=True) as status:
+                    st.write(f"1/3 สร้าง environment ({len(symbols)} symbols, {len(df_ready):,} แถว)...")
+                    try:
+                        train_env, _, _, _ = build_env_from_df(df_ready, params['reward_scaling'])
+                    except Exception as e:
+                        status.update(label="สร้าง environment ล้มเหลว", state="error")
+                        raise
+
+                    st.write(f"2/3 เทรน {params['steps']:,} steps (อาจใช้เวลาหลายนาที)...")
+                    try:
+                        _, save_path = run_training(train_env, params, model_type, model_name)
+                    except Exception as e:
+                        status.update(label="การเทรนล้มเหลว", state="error")
+                        raise
+
+                    st.write("3/3 บันทึก metadata...")
+                    write_sidecar(
+                        model_name=model_name,
+                        agent_name=model_name,
+                        exchange=exchange,
+                        grade=grade,
+                        model_type=model_type,
+                        total_steps=params['steps'],
+                        symbols=symbols,
+                        data_file=selected_data_file,
+                        continued_from=None,
+                    )
+                    elapsed = time.time() - t_start
+                    status.update(label=f"เทรนสำเร็จ! ({elapsed:.0f} วินาที)", state="complete")
+
+                st.success(f"Agent '{model_name}' เทรนเสร็จแล้ว — {save_path}.zip")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Symbols", ", ".join(symbols))
+                m2.metric("Total Steps", f"{params['steps']:,}")
+                m3.metric("เวลาที่ใช้", f"{elapsed:.0f}s")
+                st.info("ไปหน้า Test Agent หรือ Evaluate Performance เพื่อประเมินผล")
+                st.balloons()
+
+            except Exception as e:
+                st.error(f"❌ เกิดข้อผิดพลาดระหว่างการเทรน: {e}")
+                with st.expander("รายละเอียด error"):
+                    st.code(traceback.format_exc())
 
 # เรียกใช้ UI
 simple_train_agent_ui() 

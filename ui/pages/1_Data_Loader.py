@@ -189,7 +189,19 @@ def show_data_preview(df):
 def data_loader_ui():
     """UI สำหรับการโหลดข้อมูล"""
     st.header("📊 Data Loader")
-    
+
+    with st.expander("💡 วิธีใช้งาน", expanded=False):
+        st.markdown("""
+**ขั้นตอนที่ 1 จาก 6** — โหลดข้อมูลราคา OHLCV จาก exchange
+
+1. เลือก Exchange → ใส่สกุลเงิน (เช่น `BTC/USDT,ETH/USDT`) → เลือก Timeframe
+2. ตั้งช่วงวันที่ — แนะนำอย่างน้อย **6 เดือน** และ timeframe **1d**
+3. กด **เริ่มโหลดข้อมูล** → ไฟล์จะบันทึกใน `data/`
+4. นำไฟล์ที่ได้ไปใช้ต่อที่หน้า **🔧 Data Prepare**
+
+> ดูคำแนะนำเพิ่มเติมที่หน้า **📖 Help**
+""")
+
     # แสดงข้อมูลไฟล์ที่มีอยู่
     show_data_info()
     
